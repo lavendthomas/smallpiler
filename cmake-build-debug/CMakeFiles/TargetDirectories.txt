@@ -1,0 +1,3 @@
+/home/thomas/Documents/Projects/smallpiler/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/thomas/Documents/Projects/smallpiler/cmake-build-debug/CMakeFiles/smallpiler.dir
+/home/thomas/Documents/Projects/smallpiler/cmake-build-debug/CMakeFiles/edit_cache.dir
