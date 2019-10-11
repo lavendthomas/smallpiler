@@ -83,6 +83,20 @@ void next_sym()
 enum { VAR, CST, ADD, SUB, LT, ASSIGN,
        IF1, IF2, WHILE, DO, EMPTY, SEQ, EXPR, PROG };
 
+
+typedef struct big_integer {
+    int count;              // Number of links to the big_integer (<= 26-> No overflow)
+    int sign;
+    struct cell *digits;
+
+} big_integer;
+
+typedef struct cell {
+    char digit;
+    struct cell *next;
+} cell;
+
+
 struct node
   {
     int kind;
