@@ -84,9 +84,14 @@ enum { VAR, CST, ADD, SUB, LT, ASSIGN,
        IF1, IF2, WHILE, DO, EMPTY, SEQ, EXPR, PROG };
 
 
+#define POSITIVE 0
+#define NEGATIVE -1
+
+
+
 typedef struct big_integer {
     int count;              // Number of links to the big_integer (<= 26-> No overflow)
-    int sign;
+    int sign;               // 0 for +, something else for -
     struct cell *digits;
 
 } big_integer;
@@ -96,6 +101,51 @@ typedef struct cell {
     struct cell *next;
 } cell;
 
+big_integer *new_integer(int value) {
+    big_integer *nb = malloc(sizeof(big_integer));
+    if (!nb) {
+        //TODO better error handling : Not enough memory
+        syntax_error();
+    }
+    nb->count = 1;
+    if (value >= 0) {
+        nb->sign = POSITIVE;
+    } else {
+        nb->sign = NEGATIVE;
+        value = -value;             // Get the absolute value of value.
+    }
+
+    if (value == 0) {
+        nb->digits = NULL;
+    } else {
+        int modulo = 10;
+        cell *prev = NULL;
+        while (value) {
+            // Get the digit at position modulo
+            int digit = value % modulo;
+            value -= digit * modulo;
+            modulo *= 10;
+
+            // Add node to the big_integer
+            cell *cell = malloc(sizeof(cell));
+            cell->next = NULL;
+            if (!prev) {
+                prev->next = cell;
+            }
+            if (!cell) {
+                //TODO better error handling : Not enough memory
+                syntax_error();
+            }
+            cell->digit = digit;
+            prev = cell;
+        }
+    }
+}
+
+union val {
+    int variable;
+    big_integer *integer;
+} ;
 
 struct node
   {
@@ -103,7 +153,7 @@ struct node
     struct node *o1;
     struct node *o2;
     struct node *o3;
-    int val;
+    union val val;
   };
 
 typedef struct node node;
@@ -124,13 +174,13 @@ node *term() /* <term> ::= <id> | <int> | <paren_expr> */
   if (sym == ID)           /* <term> ::= <id> */
     {
       x = new_node(VAR);
-      x->val = id_name[0]-'a';
+      x->val.variable = id_name[0]-'a';
       next_sym();
     }
   else if (sym == INT)     /* <term> ::= <int> */
     {
       x = new_node(CST);
-      x->val = int_val;
+      x->val.integer = new_integer(int_val);
       next_sym();
     }
   else                     /* <term> ::= <paren_expr> */
@@ -278,7 +328,8 @@ node *program()  /* <program> ::= <stat> */
 /* Generateur de code. */
 
 enum { ILOAD, ISTORE, BIPUSH, DUP, POP, IADD, ISUB,
-       GOTO, IFEQ, IFNE, IFLT, RETURN };
+       GOTO, IFEQ, IFNE, IFLT, RETURN,
+       PRNT, IFLE, IFGE, IFGT};
 
 typedef signed char code;
 
@@ -298,9 +349,9 @@ void fix(code *src, code *dst) { *src = dst-src; } /* overflow? */
 
 void c(node *x)
 { switch (x->kind)
-    { case VAR   : gi(ILOAD); g(x->val); break;
+    { case VAR   : gi(ILOAD); g(x->val.variable); break;
 
-      case CST   : gi(BIPUSH); g(x->val); break;
+      case CST   : gi(BIPUSH); g(x->val.integer); break;
 
       case ADD   : c(x->o1); c(x->o2); gi(IADD); break;
 
@@ -316,7 +367,7 @@ void c(node *x)
 
       case ASSIGN: c(x->o2);
                    gi(DUP);
-                   gi(ISTORE); g(x->o1->val); break;
+                   gi(ISTORE); g(x->o1->val.variable); break;
 
       case IF1   : { code *p1;
                      c(x->o1);
