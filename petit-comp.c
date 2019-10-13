@@ -149,6 +149,19 @@ big_integer *new_integer(int value) {
     }
 }
 
+/**
+ * Returns the number of digits of a big integer
+ */
+int big_integer_size(big_integer *integer) {
+    int size = 0;
+    cell *this = integer->digits;
+    while (this != NULL) {
+        size++;
+        this = this->next;
+    }
+    return size;
+}
+
 
 /**
  *  Returns a new big_integer containing the sum of the two integers in para
@@ -490,6 +503,13 @@ void c(node *x) {
 
 /* Machine virtuelle. */
 
+typedef struct linked_list linked_list;
+
+struct linked_list {
+    code data;
+    linked_list *next;
+} ;
+
 int globals[26];
 
 void run()
@@ -513,14 +533,21 @@ void run()
         case IFLT  : if (*--sp< 0) pc += *pc; else pc++; break;
         case BGLOAD: {
             big_integer *number = globals[*pc++];
+            int size = big_integer_size(number);
+            int jump = size + 2;
+            sp += jump;         // Write the bytes in inverted order
+
             cell *digit;
-            *sp++ = number->sign;
+            *sp-- = number->sign;
             digit = number->digits;
             while (digit != NULL) {
-                *sp++ = digit->digit;
+                *sp-- = digit->digit;
                 digit = digit->next;
             }
-            *sp++ = BIG_INTEGER_LIMITER;
+            *sp-- = BIG_INTEGER_LIMITER;
+
+            // Go bach to the top of the stack
+            sp += jump;
             // TODO free number ?
         }
         case BGSTORE : {
@@ -529,12 +556,12 @@ void run()
             cell *prev = NULL;
             cell *first = NULL;
             big_integer *nb = malloc(sizeof(big_integer));
-            if (!nb) {
+            if (nb == NULL) {
                 //TODO better error handling : Not enough memory
                 syntax_error();
             }
             nb->count = 1;
-            nb->sign = pc;
+            nb->sign = *pc++;
             nb->digits = NULL;
             read = *pc++;
 
@@ -591,10 +618,18 @@ int main()
   for (i=0; i<26; i++)
     globals[i] = 0;
 
+    int j;
+    for (j = 0; j < 1000; j++)
+    {
+        if (j > 0) printf(":");
+        printf("%02d", object[j]);
+    }
+    printf("\n");
+
   run();
 
   for (i=0; i<26; i++)
-    if (globals[i] != 0)
+    // if (globals[i] != 0)
       printf("%c = %d\n", 'a'+i, globals[i]);
 
   return 0;
