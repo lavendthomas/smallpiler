@@ -167,7 +167,7 @@ int big_integer_size(big_integer *integer) {
  *  Returns a new big_integer containing the sum of the two integers in para
  */
 big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
-        big_integer *sum = malloc(new_integer(0));
+        big_integer *sum = malloc(sizeof(big_integer));
         if (bi1->sign == bi2->sign) {
             // TODO
         }
@@ -364,7 +364,7 @@ enum { ILOAD, ISTORE, BIPUSH, DUP, POP, IADD, ISUB,
        GOTO, IFEQ, IFNE, IFLT, RETURN,
        PRNT, IFLE, IFGE, IFGT,
        BGLOAD, BGSTORE, BGPUSH,
-       BGADD, BGSUB};
+       BGADD, BGSUB, BGDUP};
 
 #define BIG_INTEGER_LIMITER 127             // digits < 10
 
@@ -387,7 +387,7 @@ void fix(code *src, code *dst) { *src = dst-src; } /* overflow? */
 void c(node *x) {
     switch (x->kind) {
         case VAR   :
-            gi(BGLOAD);
+            gi(ILOAD);
             g(x->val.variable);
             break;
 
@@ -427,11 +427,15 @@ void c(node *x) {
             g(0);
             break;
 
-        case ASSIGN: // Replace by glocals[i] = globals[j] in virtual machine
-            c(x->o2);
+        case ASSIGN: // Replace by globals[i] = globals[j] in virtual machine
+            /*c(x->o2);
             gi(DUP);
             gi(ISTORE);
-            g(x->o1->val.variable);
+            g(x->o1->val.variable);*/
+
+            c(x->o2);
+
+
             break;
 
         case IF1   : {
@@ -590,6 +594,23 @@ void run()
         }
         case BGPUSH : {
 
+                // Fill the stack with the number (in the opposite sequence, sign on top and LIMITER below)
+                int jump = 0;
+                int i;
+                while (*pc++ != BIG_INTEGER_LIMITER) {
+                    jump++;
+                }
+
+                sp += jump - 1;
+                pc -= jump;
+
+                while (*pc != BIG_INTEGER_LIMITER) {
+                    *sp-- = *pc++;
+                }
+
+                *sp = *pc++; // Write the BIG_INTEGER_LIMITER below all the digits of the number
+
+                sp += jump;
         }
         case BGADD : {
 
@@ -607,6 +628,8 @@ void run()
 
 int main()
 {
+
+  freopen("code.c","r",stdin);
   int i;
 
   c(program());
