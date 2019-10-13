@@ -149,6 +149,23 @@ big_integer *new_integer(int value) {
     }
 }
 
+void _big_integer_print(cell *c) {
+    if (c->next != NULL) {
+        _big_integer_print(c->next);
+    }
+    putchar( c->digit + '0');
+}
+
+void big_integer_print(big_integer *nb) {
+    if (nb == NULL) {
+        return;
+    }
+    if (nb->sign == NEGATIVE) {
+        putchar('-');
+    }
+    _big_integer_print(nb->digits);
+}
+
 /**
  * Returns the number of digits of a big integer
  */
@@ -626,9 +643,14 @@ int main()
 
   run();
 
-  for (i=0; i<26; i++)
-     if (globals[i] != 0)
-      printf("%c = %d\n", 'a'+i, globals[i]);
+  for (i=0; i<26; i++){
+      if (globals[i] != 0) {
+          printf("%c = ", 'a' + i);
+          big_integer_print(globals[i]);
+          printf("\n");
+      }
+  }
+
 
   return 0;
 }
