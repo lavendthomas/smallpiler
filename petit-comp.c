@@ -434,7 +434,9 @@ void c(node *x) {
             g(x->o1->val.variable);*/
 
             c(x->o2);
-
+            gi(BGDUP);
+            gi(BGSTORE);
+            g(x->o1->val.variable);
 
             break;
 
@@ -535,27 +537,11 @@ void run()
         case IFEQ  : if (*--sp==0) pc += *pc; else pc++; break;
         case IFNE  : if (*--sp!=0) pc += *pc; else pc++; break;
         case IFLT  : if (*--sp< 0) pc += *pc; else pc++; break;
-        case BGLOAD: {
-            big_integer *number = globals[*pc++];
-            int size = big_integer_size(number);
-            int jump = size + 2;
-            sp += jump;         // Write the bytes in inverted order
+        case BGLOAD: *sp++ = globals[*pc++];             break;
+        case BGSTORE: globals[*pc++] = *--sp;            break;
+        case BGPUSH : {
+            // Push a pointer to a big_integer to the top of the stack
 
-            cell *digit;
-            *sp-- = number->sign;
-            digit = number->digits;
-            while (digit != NULL) {
-                *sp-- = digit->digit;
-                digit = digit->next;
-            }
-            *sp-- = BIG_INTEGER_LIMITER;
-
-            // Go bach to the top of the stack
-            sp += jump;
-            // TODO free number ?
-        }
-        case BGSTORE : {
-            int variable = *pc++;
             code read;
             cell *prev = NULL;
             cell *first = NULL;
@@ -578,7 +564,7 @@ void run()
                     syntax_error();
                 }
                 cell->next = NULL;
-                if (!prev) {
+                if (prev != NULL) {
                     prev->next = cell;
                 } else {
                     // If it has no previous node, then it's the first one
@@ -590,33 +576,22 @@ void run()
             }
             nb->digits = first;
 
-            globals[variable] = nb;
-        }
-        case BGPUSH : {
+            *sp++ = (int) nb;       // Add the pointer to the big_integer to the top of the stack.
 
-                // Fill the stack with the number (in the opposite sequence, sign on top and LIMITER below)
-                int jump = 0;
-                int i;
-                while (*pc++ != BIG_INTEGER_LIMITER) {
-                    jump++;
-                }
-
-                sp += jump - 1;
-                pc -= jump;
-
-                while (*pc != BIG_INTEGER_LIMITER) {
-                    *sp-- = *pc++;
-                }
-
-                *sp = *pc++; // Write the BIG_INTEGER_LIMITER below all the digits of the number
-
-                sp += jump;
+            break;
         }
         case BGADD : {
 
         }
         case BGSUB : {
 
+        }
+        case BGDUP: {
+            sp++; sp[-1] = sp[-2];
+            // Add one to the number of counts of big_integer
+            big_integer *bi = sp[-1];
+            bi->count += 1;
+            break;
         }
         case RETURN: return;
     }
@@ -652,7 +627,7 @@ int main()
   run();
 
   for (i=0; i<26; i++)
-    // if (globals[i] != 0)
+     if (globals[i] != 0)
       printf("%c = %d\n", 'a'+i, globals[i]);
 
   return 0;
