@@ -87,6 +87,7 @@ enum { VAR, CST, ADD, SUB, LT, ASSIGN,
 #define POSITIVE 0
 #define NEGATIVE -1
 
+typedef signed char code;
 
 
 typedef struct big_integer {
@@ -120,26 +121,45 @@ big_integer *new_integer(int value) {
     } else {
         int modulo = 10;
         cell *prev = NULL;
-        while (value) {
+        cell *first;
+        while (value != 0) {
+
             // Get the digit at position modulo
             int digit = value % modulo;
-            value -= digit * modulo;
+            value -= digit * (modulo/10);
             modulo *= 10;
 
             // Add node to the big_integer
             cell *cell = malloc(sizeof(cell));
-            cell->next = NULL;
-            if (!prev) {
-                prev->next = cell;
-            }
             if (!cell) {
                 //TODO better error handling : Not enough memory
                 syntax_error();
             }
+            cell->next = NULL;
+            if (prev != NULL) {
+                prev->next = cell;
+            } else {
+                // If it has no previous node, then it's the first one
+                first = cell;
+            }
             cell->digit = digit;
             prev = cell;
         }
+        nb->digits = first;
     }
+}
+
+
+/**
+ *  Returns a new big_integer containing the sum of the two integers in para
+ */
+big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
+        big_integer *sum = malloc(new_integer(0));
+        if (bi1->sign == bi2->sign) {
+            // TODO
+        }
+
+
 }
 
 union val {
@@ -329,9 +349,13 @@ node *program()  /* <program> ::= <stat> */
 
 enum { ILOAD, ISTORE, BIPUSH, DUP, POP, IADD, ISUB,
        GOTO, IFEQ, IFNE, IFLT, RETURN,
-       PRNT, IFLE, IFGE, IFGT};
+       PRNT, IFLE, IFGE, IFGT,
+       BGLOAD, BGSTORE, BGPUSH,
+       BGADD, BGSUB};
 
-typedef signed char code;
+#define BIG_INTEGER_LIMITER 127             // digits < 10
+
+
 
 code object[1000], *here = object;
 
@@ -347,64 +371,118 @@ void gen(code c) { *here++ = c; } /* overflow? */
 
 void fix(code *src, code *dst) { *src = dst-src; } /* overflow? */
 
-void c(node *x)
-{ switch (x->kind)
-    { case VAR   : gi(ILOAD); g(x->val.variable); break;
+void c(node *x) {
+    switch (x->kind) {
+        case VAR   :
+            gi(BGLOAD);
+            g(x->val.variable);
+            break;
 
-      case CST   : gi(BIPUSH); g(x->val.integer); break;
+        case CST   :
+            gi(BGPUSH);
+            g(x->val.integer->sign);
+            cell *digit = x->val.integer->digits;
+            while (digit != NULL) {
+                g(digit->digit);
+                digit = digit->next;
+            }
+            g(BIG_INTEGER_LIMITER);
+            // TODO should we free the big_integer here?
+            break;
+        case ADD   :
+            c(x->o1);
+            c(x->o2);
+            gi(BGADD);
+            break;
 
-      case ADD   : c(x->o1); c(x->o2); gi(IADD); break;
+        case SUB   :
+            c(x->o1);
+            c(x->o2);
+            gi(BGSUB);
+            break;
 
-      case SUB   : c(x->o1); c(x->o2); gi(ISUB); break;
+        case LT    :
+            gi(BIPUSH);
+            g(1);
+            c(x->o1);
+            c(x->o2);
+            gi(ISUB);
+            gi(IFLT);
+            g(4);
+            gi(POP);
+            gi(BIPUSH);
+            g(0);
+            break;
 
-      case LT    : gi(BIPUSH); g(1);
-                   c(x->o1);
-                   c(x->o2);
-                   gi(ISUB);
-                   gi(IFLT); g(4);
-                   gi(POP);
-                   gi(BIPUSH); g(0); break;
+        case ASSIGN: // Replace by glocals[i] = globals[j] in virtual machine
+            c(x->o2);
+            gi(DUP);
+            gi(ISTORE);
+            g(x->o1->val.variable);
+            break;
 
-      case ASSIGN: c(x->o2);
-                   gi(DUP);
-                   gi(ISTORE); g(x->o1->val.variable); break;
+        case IF1   : {
+            code *p1;
+            c(x->o1);
+            gi(IFEQ);
+            p1 = here++;
+            c(x->o2);
+            fix(p1, here);
+            break;
+        }
 
-      case IF1   : { code *p1;
-                     c(x->o1);
-                     gi(IFEQ); p1 = here++;
-                     c(x->o2); fix(p1,here); break;
-                   }
+        case IF2   : {
+            code *p1, *p2;
+            c(x->o1);
+            gi(IFEQ);
+            p1 = here++;
+            c(x->o2);
+            gi(GOTO);
+            p2 = here++;
+            fix(p1, here);
+            c(x->o3);
+            fix(p2, here);
+            break;
+        }
 
-      case IF2   : { code *p1, *p2;
-                     c(x->o1);
-                     gi(IFEQ); p1 = here++;
-                     c(x->o2);
-                     gi(GOTO); p2 = here++; fix(p1,here);
-                     c(x->o3); fix(p2,here); break;
-                   }
+        case WHILE : {
+            code *p1 = here, *p2;
+            c(x->o1);
+            gi(IFEQ);
+            p2 = here++;
+            c(x->o2);
+            gi(GOTO);
+            fix(here++, p1);
+            fix(p2, here);
+            break;
+        }
 
-      case WHILE : { code *p1 = here, *p2;
-                     c(x->o1);
-                     gi(IFEQ); p2 = here++;
-                     c(x->o2);
-                     gi(GOTO); fix(here++,p1); fix(p2,here); break;
-                   }
+        case DO    : {
+            code *p1 = here;
+            c(x->o1);
+            c(x->o2);
+            gi(IFNE);
+            fix(here++, p1);
+            break;
+        }
 
-      case DO    : { code *p1 = here; c(x->o1);
-                     c(x->o2);
-                     gi(IFNE); fix(here++,p1); break;
-                   }
+        case EMPTY :
+            break;
 
-      case EMPTY : break;
+        case SEQ   :
+            c(x->o1);
+            c(x->o2);
+            break;
 
-      case SEQ   : c(x->o1);
-                   c(x->o2); break;
+        case EXPR  :
+            c(x->o1);
+            gi(POP);
+            break;
 
-      case EXPR  : c(x->o1);
-                   gi(POP); break;
-
-      case PROG  : c(x->o1);
-                   gi(RETURN); break;
+        case PROG  :
+            c(x->o1);
+            gi(RETURN);
+            break;
     }
 }
 
@@ -433,6 +511,65 @@ void run()
         case IFEQ  : if (*--sp==0) pc += *pc; else pc++; break;
         case IFNE  : if (*--sp!=0) pc += *pc; else pc++; break;
         case IFLT  : if (*--sp< 0) pc += *pc; else pc++; break;
+        case BGLOAD: {
+            big_integer *number = globals[*pc++];
+            cell *digit;
+            *sp++ = number->sign;
+            digit = number->digits;
+            while (digit != NULL) {
+                *sp++ = digit->digit;
+                digit = digit->next;
+            }
+            *sp++ = BIG_INTEGER_LIMITER;
+            // TODO free number ?
+        }
+        case BGSTORE : {
+            int variable = *pc++;
+            code read;
+            cell *prev = NULL;
+            cell *first = NULL;
+            big_integer *nb = malloc(sizeof(big_integer));
+            if (!nb) {
+                //TODO better error handling : Not enough memory
+                syntax_error();
+            }
+            nb->count = 1;
+            nb->sign = pc;
+            nb->digits = NULL;
+            read = *pc++;
+
+            while (read != BIG_INTEGER_LIMITER) {
+
+                // Add node to the big_integer
+                cell *cell = malloc(sizeof(cell));
+                if (!cell) {
+                    //TODO better error handling : Not enough memory
+                    syntax_error();
+                }
+                cell->next = NULL;
+                if (!prev) {
+                    prev->next = cell;
+                } else {
+                    // If it has no previous node, then it's the first one
+                    first = cell;
+                }
+                cell->digit = read;
+                prev = cell;
+                read = *pc++;
+            }
+            nb->digits = first;
+
+            globals[variable] = nb;
+        }
+        case BGPUSH : {
+
+        }
+        case BGADD : {
+
+        }
+        case BGSUB : {
+
+        }
         case RETURN: return;
     }
 }
