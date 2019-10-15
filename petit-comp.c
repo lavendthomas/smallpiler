@@ -167,7 +167,10 @@ void big_integer_print(big_integer *nb) {
 }
 
 /**
- * Returns the number of digits of a big integer
+ * Returns the number of digits of a big integer.
+ *
+ * WARNING : overflows if the number of digits in base 10 is higher than or
+ *           equal to INT_MAX
  */
 int big_integer_size(big_integer *integer) {
     int size = 0;
@@ -181,16 +184,97 @@ int big_integer_size(big_integer *integer) {
 
 
 /**
- *  Returns a new big_integer containing the sum of the two integers in para
+ *  Returns a new big_integer containing the sum of the two integers in parameters.
  */
 big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
-        big_integer *sum = malloc(sizeof(big_integer));
-        if (bi1->sign == bi2->sign) {
-            // TODO
+    big_integer *sum = new_integer(0);
+
+    cell *d1 = bi1->digits;
+    cell *d2 = bi2->digits;
+    int sign, sign1, sign2;
+    cell *prev = NULL;
+    int carry = 0;
+
+    sign1 = (bi1->sign == POSITIVE) ? POSITIVE : NEGATIVE;
+    sign2 = (bi2->sign == POSITIVE) ? POSITIVE : NEGATIVE;
+
+    // Do like in primary school
+
+    while (d1 != NULL || d2 != NULL || carry != 0 ) {
+        int s = carry;
+        int sign = (sign1 == NEGATIVE && sign2 == NEGATIVE) ? NEGATIVE : POSITIVE;
+        if (d1 != NULL) {
+            if (sign1 == POSITIVE) {
+                s += d1->digit;
+            } else {
+                s -= d1->digit;
+                if (d2 == NULL) {
+                    // We substrated more digits than there are positive digits
+                    sign = NEGATIVE;
+                }
+            }
+        }
+        if (d2 != NULL) {
+            if (sign2 == POSITIVE) {
+                s += d2->digit;
+            } else {
+                s -= d2->digit;
+                if (d1 == NULL) {
+                    // We substrated more digits than there are positive digits
+                    sign = NEGATIVE;
+                }
+            }
         }
 
+        carry = s / 10;
+        s = s % 10;
 
+        if (carry < 0 && d1 == NULL) {
+            sum->sign = NEGATIVE;
+        }
+
+        cell *new_cell = malloc(sizeof(cell));
+        new_cell->digit = s;
+        new_cell->next = NULL;
+        sum->sign = sign;
+        if (prev != NULL) {
+            prev->next = new_cell;
+        }
+        prev = new_cell;
+    }
+
+    return sum;
 }
+
+/**
+ * Frees the memory used by the cell n and all the following cells it points to.
+ * @param n
+ */
+void _big_integer_cell_free(cell *n) {
+    if (n != NULL) {
+        _big_integer_cell_free(n->next);
+        free(n);
+    }
+}
+
+/**
+ * Call this function when you won't use your pointer to this big_integer.
+ *
+ * The memory used by this number will be freed if no other pointer uses this big_integer.
+ * @param n
+ */
+void big_integer_free(big_integer *n) {
+    if (n != NULL) {
+        if (n->count > 0) {
+            n->count = n->count - 1;
+        } else {
+            // The big_integer will not be used. Free its memory
+            _big_integer_cell_free(n->digits);
+            free(n);
+        }
+    }
+}
+
 
 union val {
     int variable;
