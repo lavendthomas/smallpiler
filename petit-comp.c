@@ -104,7 +104,7 @@ typedef struct cell {
 
 big_integer *new_integer(int value) {
     big_integer *nb = malloc(sizeof(big_integer));
-    if (!nb) {
+    if (nb == NULL) {
         //TODO better error handling : Not enough memory
         syntax_error();
     }
@@ -126,12 +126,11 @@ big_integer *new_integer(int value) {
 
             // Get the digit at position modulo
             int digit = value % modulo;
-            value -= digit * (modulo/10);
-            modulo *= 10;
+            value /= modulo;
 
             // Add node to the big_integer
             cell *cell = malloc(sizeof(cell));
-            if (!cell) {
+            if (cell == NULL) {
                 //TODO better error handling : Not enough memory
                 syntax_error();
             }
@@ -147,6 +146,7 @@ big_integer *new_integer(int value) {
         }
         nb->digits = first;
     }
+    return nb;
 }
 
 void _big_integer_print(cell *c) {
@@ -192,7 +192,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
     cell *d1 = bi1->digits;
     cell *d2 = bi2->digits;
     int sign, sign1, sign2;
-    cell *prev = NULL;
+    cell *first, *prev = NULL;
     int carry = 0;
 
     sign1 = (bi1->sign == POSITIVE) ? POSITIVE : NEGATIVE;
@@ -213,6 +213,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
                     sign = NEGATIVE;
                 }
             }
+            d1 = d1->next;
         }
         if (d2 != NULL) {
             if (sign2 == POSITIVE) {
@@ -224,24 +225,32 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
                     sign = NEGATIVE;
                 }
             }
+            d2 = d2->next;
         }
 
         carry = s / 10;
         s = s % 10;
 
-        if (carry < 0 && d1 == NULL) {
-            sum->sign = NEGATIVE;
-        }
 
         cell *new_cell = malloc(sizeof(cell));
+
+        if (new_cell == NULL) {
+            //TODO better error handling : Not enough memory
+            syntax_error();
+        }
+
         new_cell->digit = s;
         new_cell->next = NULL;
         sum->sign = sign;
         if (prev != NULL) {
             prev->next = new_cell;
+        } else {
+            first = new_cell;
         }
         prev = new_cell;
     }
+
+    sum->digits = first;
 
     return sum;
 }
@@ -682,6 +691,12 @@ void run()
             break;
         }
         case BGADD : {
+            big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
+            big_integer *c = big_integer_sum(a,b);
+            sp[-2] = (int) c;
+            sp--;
+            //TODO free a and b
+            break;
 
         }
         case BGSUB : {
