@@ -87,6 +87,8 @@ enum { VAR, CST, ADD, SUB, LT, ASSIGN,
 #define POSITIVE 0
 #define NEGATIVE -1
 
+#define MOD(a,b) (a % b + b) %b;        // https://stackoverflow.com/a/42131603
+
 typedef signed char code;
 
 
@@ -202,18 +204,17 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
 
     while (d1 != NULL || d2 != NULL || carry != 0 ) {
         int s = carry;
-        int sign = (sign1 == NEGATIVE && sign2 == NEGATIVE) ? NEGATIVE : POSITIVE;
+        sign = (sign1 == NEGATIVE && sign2 == NEGATIVE) ? NEGATIVE : POSITIVE;
         if (d1 != NULL) {
             if (sign1 == POSITIVE) {
                 s += d1->digit;
             } else {
                 s -= d1->digit;
                 if (d2 == NULL) {
-                    // We substrated more digits than there are positive digits
+                    // We substract more digits than there are positive digits
                     sign = NEGATIVE;
                 }
             }
-            d1 = d1->next;
         }
         if (d2 != NULL) {
             if (sign2 == POSITIVE) {
@@ -221,16 +222,38 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
             } else {
                 s -= d2->digit;
                 if (d1 == NULL) {
-                    // We substrated more digits than there are positive digits
+                    // We substract more digits than there are positive digits
                     sign = NEGATIVE;
                 }
             }
+
+        }
+
+        if (d1 != NULL) {
+            d1 = d1->next;
+        }
+        if (d2 != NULL) {
             d2 = d2->next;
         }
 
-        carry = s / 10;
-        s = s % 10;
 
+
+        if (s > 10) {       // carry = s // 10 in Python, carry = s / 10 doesn't work
+            carry = 1;
+        } else if (s < 0) {
+            carry = -1;
+
+        } else {
+            carry = 0;
+        }
+
+        if (carry < 0 &&( (sign1 == POSITIVE && d1 == NULL) || (sign2 == POSITIVE && d2 == NULL)) ) {
+            // the sum is negative
+            sign = NEGATIVE;
+            carry = 1;
+            s = 10 - s;
+        }
+        s = MOD(s,10);
 
         cell *new_cell = malloc(sizeof(cell));
 
@@ -241,7 +264,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
 
         new_cell->digit = s;
         new_cell->next = NULL;
-        sum->sign = sign;
+
         if (prev != NULL) {
             prev->next = new_cell;
         } else {
@@ -251,8 +274,26 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
     }
 
     sum->digits = first;
+    sum->sign = sign;
 
     return sum;
+}
+
+/**
+ *  Returns a new big_integer containing the difference of the two integers in parameters.
+ */
+big_integer *big_integer_difference(big_integer *bi1, big_integer *bi2) {
+    big_integer *diff;
+    if (bi2->sign == POSITIVE) {                // Should be make a copy to support embedded calls ?
+        bi2->sign = NEGATIVE;
+        diff = big_integer_sum(bi1, bi2);
+        bi2->sign = POSITIVE;
+    } else {
+        bi2->sign = POSITIVE;
+        diff = big_integer_sum(bi1, bi2);
+        bi2->sign = NEGATIVE;
+    }
+    return diff;
 }
 
 /**
@@ -697,10 +738,14 @@ void run()
             sp--;
             //TODO free a and b
             break;
-
         }
         case BGSUB : {
-
+            big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
+            big_integer *c = big_integer_difference(a,b);
+            sp[-2] = (int) c;
+            sp--;
+            //TODO free a and b
+            break;
         }
         case BGDUP: {
             sp++; sp[-1] = sp[-2];
