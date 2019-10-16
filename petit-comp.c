@@ -152,7 +152,7 @@ big_integer *new_integer(int value) {
 }
 
 void _big_integer_print(cell *c) {
-    if (c->next != NULL) {
+    if (c != NULL && c->next != NULL) {
         _big_integer_print(c->next);
     }
     putchar( c->digit + '0');
@@ -160,6 +160,10 @@ void _big_integer_print(cell *c) {
 
 void big_integer_print(big_integer *nb) {
     if (nb == NULL) {
+        return;
+    }
+    if (nb->digits == NULL) {
+        putchar( '0');
         return;
     }
     if (nb->sign == NEGATIVE) {
@@ -194,7 +198,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
     cell *d1 = bi1->digits;
     cell *d2 = bi2->digits;
     int sign, sign1, sign2;
-    cell *first, *prev = NULL;
+    cell *first = NULL, *prev = NULL;
     int carry = 0;
 
     sign1 = (bi1->sign == POSITIVE) ? POSITIVE : NEGATIVE;
@@ -248,10 +252,20 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
         }
 
         if (carry < 0 &&( (sign1 == POSITIVE && d1 == NULL) || (sign2 == POSITIVE && d2 == NULL)) ) {
+            big_integer *x;
             // the sum is negative
-            sign = NEGATIVE;
+            /* sign = NEGATIVE;
             carry = 1;
-            s = 10 - s;
+            s = 10 - s;*/
+            bi1->sign = (bi1->sign == POSITIVE) ? NEGATIVE : POSITIVE;
+            bi2->sign = (bi2->sign == POSITIVE) ? NEGATIVE : POSITIVE;
+            x = big_integer_sum(bi2, bi1);
+            x->sign = (x->sign == POSITIVE) ? NEGATIVE : POSITIVE;
+            // put the correct sign bach
+            bi1->sign = (bi1->sign == POSITIVE) ? NEGATIVE : POSITIVE;
+            bi2->sign = (bi2->sign == POSITIVE) ? NEGATIVE : POSITIVE;
+
+            return x;
         }
         s = MOD(s,10);
 
