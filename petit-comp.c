@@ -170,7 +170,7 @@ void _big_integer_cell_free(cell *n) {
  */
 void big_integer_free(big_integer *n) {
     if (n != NULL) {
-        if (n->count > 0) {
+        if (n->count > 1) {
             n->count = n->count - 1;
         } else {
             // The big_integer will not be used. Free its memory
