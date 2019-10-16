@@ -151,6 +151,35 @@ big_integer *new_integer(int value) {
     return nb;
 }
 
+/**
+ * Frees the memory used by the cell n and all the following cells it points to.
+ * @param n
+ */
+void _big_integer_cell_free(cell *n) {
+    if (n != NULL) {
+        _big_integer_cell_free(n->next);
+        free(n);
+    }
+}
+
+/**
+ * Call this function when you won't use your pointer to this big_integer.
+ *
+ * The memory used by this number will be freed if no other pointer uses this big_integer.
+ * @param n
+ */
+void big_integer_free(big_integer *n) {
+    if (n != NULL) {
+        if (n->count > 0) {
+            n->count = n->count - 1;
+        } else {
+            // The big_integer will not be used. Free its memory
+            _big_integer_cell_free(n->digits);
+            free(n);
+        }
+    }
+}
+
 void _big_integer_print(cell *c) {
     if (c != NULL && c->next != NULL) {
         _big_integer_print(c->next);
@@ -265,6 +294,9 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
             bi1->sign = (bi1->sign == POSITIVE) ? NEGATIVE : POSITIVE;
             bi2->sign = (bi2->sign == POSITIVE) ? NEGATIVE : POSITIVE;
 
+            sum->digits = first;
+            _big_integer_cell_free(sum);        // Free the previous instance we created but will never use
+
             return x;
         }
         s = MOD(s,10);
@@ -310,34 +342,7 @@ big_integer *big_integer_difference(big_integer *bi1, big_integer *bi2) {
     return diff;
 }
 
-/**
- * Frees the memory used by the cell n and all the following cells it points to.
- * @param n
- */
-void _big_integer_cell_free(cell *n) {
-    if (n != NULL) {
-        _big_integer_cell_free(n->next);
-        free(n);
-    }
-}
 
-/**
- * Call this function when you won't use your pointer to this big_integer.
- *
- * The memory used by this number will be freed if no other pointer uses this big_integer.
- * @param n
- */
-void big_integer_free(big_integer *n) {
-    if (n != NULL) {
-        if (n->count > 0) {
-            n->count = n->count - 1;
-        } else {
-            // The big_integer will not be used. Free its memory
-            _big_integer_cell_free(n->digits);
-            free(n);
-        }
-    }
-}
 
 
 union val {
