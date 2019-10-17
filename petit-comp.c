@@ -11,7 +11,8 @@
 /* Analyseur lexical. */
 
 enum { DO_SYM, ELSE_SYM, IF_SYM, WHILE_SYM, LBRA, RBRA, LPAR,
-       RPAR, PLUS, MINUS, LESS, SEMI, EQUAL, INT, ID, EOI };
+       RPAR, PLUS, MINUS, LESS, SEMI, EQUAL, INT, ID, EOI,
+       TIMES, OVER, MODULO};
 
 char *words[] = { "do", "else", "if", "while", NULL };
 
@@ -28,16 +29,19 @@ void next_sym()
 {
   while (ch == ' ' || ch == '\n') next_ch();
   switch (ch)
-    { case '{': sym = LBRA;  next_ch(); break;
-      case '}': sym = RBRA;  next_ch(); break;
-      case '(': sym = LPAR;  next_ch(); break;
-      case ')': sym = RPAR;  next_ch(); break;
-      case '+': sym = PLUS;  next_ch(); break;
-      case '-': sym = MINUS; next_ch(); break;
-      case '<': sym = LESS;  next_ch(); break;
-      case ';': sym = SEMI;  next_ch(); break;
-      case '=': sym = EQUAL; next_ch(); break;
-      case EOF: sym = EOI;   next_ch(); break;
+    { case '{': sym = LBRA;   next_ch(); break;
+      case '}': sym = RBRA;   next_ch(); break;
+      case '(': sym = LPAR;   next_ch(); break;
+      case ')': sym = RPAR;   next_ch(); break;
+      case '+': sym = PLUS;   next_ch(); break;
+      case '-': sym = MINUS;  next_ch(); break;
+      case '*': sym = TIMES;  next_ch(); break;
+      case '/': sym = OVER;   next_ch(); break;
+      case '%': sym = MODULO; next_ch(); break;
+      case '<': sym = LESS;   next_ch(); break;
+      case ';': sym = SEMI;   next_ch(); break;
+      case '=': sym = EQUAL;  next_ch(); break;
+      case EOF: sym = EOI;    next_ch(); break;
       default:
         if (ch >= '0' && ch <= '9')
           {
@@ -81,7 +85,8 @@ void next_sym()
 /* Analyseur syntaxique. */
 
 enum { VAR, CST, ADD, SUB, LT, ASSIGN,
-       IF1, IF2, WHILE, DO, EMPTY, SEQ, EXPR, PROG };
+       IF1, IF2, WHILE, DO, EMPTY, SEQ, EXPR, PROG,
+       MULT, DIV10, MOD10};
 
 
 #define POSITIVE 0
@@ -422,9 +427,30 @@ node *term() /* <term> ::= <id> | <int> | <paren_expr> */
   return x;
 }
 
+node *mult() {
+    node *x = term();
+
+    while (sym == TIMES || sym == OVER || sym == MODULO) {
+        node *t = x;
+        switch (sym) {
+            case TIMES   : x = new_node(MULT); break;
+            case OVER  : x = new_node(DIV10); break;
+            case MODULO : x = new_node(MOD10); break;
+        }
+        if (sym == OVER || sym == MODULO) {
+            // TODO check that the right term is a constant containing 10.
+        }
+        next_sym();
+        x->o1 = t;
+        x->o2 = term();
+    }
+    return x;
+}
+
+
 node *sum() /* <sum> ::= <term>|<sum>"+"<term>|<sum>"-"<term> */
 {
-  node *x = term();
+  node *x = mult();
 
   while (sym == PLUS || sym == MINUS)
     {
@@ -432,7 +458,7 @@ node *sum() /* <sum> ::= <term>|<sum>"+"<term>|<sum>"-"<term> */
       x = new_node(sym==PLUS ? ADD : SUB);
       next_sym();
       x->o1 = t;
-      x->o2 = term();
+      x->o2 = mult();
     }
 
   return x;
