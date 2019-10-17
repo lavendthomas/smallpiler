@@ -87,7 +87,7 @@ enum { VAR, CST, ADD, SUB, LT, ASSIGN,
 #define POSITIVE 0
 #define NEGATIVE -1
 
-#define MOD(a,b) (a % b + b) %b;        // https://stackoverflow.com/a/42131603
+#define MOD(a,b) ((a) % (b) + (b)) %(b);        // https://stackoverflow.com/a/42131603
 
 typedef signed char code;
 
@@ -323,6 +323,36 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
     sum->sign = sign;
 
     return sum;
+}
+
+/**
+ * Returns a pointer to a copy of nb
+ */
+ big_integer *big_integer_copy(big_integer *nb) {
+     // TODO if useful
+ }
+
+
+/**
+ *  Returns a pointer to new big_integer with 10 * nb.
+ */
+big_integer *big_integer_multiply(big_integer *nb) {
+    // Copy if useful
+    if (nb != NULL) {
+        if (nb->digits != NULL) {
+            // There are digits, so nb != 0 => add one trailing zero
+            cell *new_cell = malloc(sizeof(cell));
+            if (new_cell == NULL) {
+                //TODO better handle not enough memory errors
+                syntax_error();
+            } else {
+                // Add one cell with 0 at the lowest power.
+                new_cell->digit = 0;
+                new_cell->next = nb->digits;
+                new_cell->digit = new_cell;
+            }
+        }
+    }
 }
 
 /**
