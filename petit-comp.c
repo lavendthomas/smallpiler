@@ -330,21 +330,46 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
     return sum;
 }
 
-/**
- * Returns a pointer to a copy of nb
- */
- big_integer *big_integer_copy(big_integer *nb) {
-     // TODO if useful
+ /**
+  * Returns a pointer to a copy of a
+  */
+ big_integer *big_integer_copy(big_integer *a) {
+     if (a != NULL) {
+         big_integer *cp = new_integer(0);
+         cell *prev = NULL, *first = NULL;
+         cell *current = a->digits;
+         cp->sign = a->sign;
+
+         while (current != NULL) {
+             cell *c = malloc(sizeof(cell));
+
+             if (c == NULL) {
+                 //TODO better error handling : Not enough memory
+                 syntax_error();
+             }
+
+             c->next = NULL;
+             if (prev != NULL) {
+                 prev->next = c;
+             } else {
+                 // If it has no previous node, then it's the first one
+                 first = c;
+             }
+             c->digit = current->digit;
+             prev = c;
+         }
+         cp->digits = first;
+     }
  }
 
 
 /**
  *  Returns a pointer to new big_integer with 10 * nb.
  */
-big_integer *big_integer_multiply(big_integer *nb) {
+big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
     // Copy if useful
-    if (nb != NULL) {
-        if (nb->digits != NULL) {
+    if (a != NULL) {
+        if (a->digits != NULL) {
             // There are digits, so nb != 0 => add one trailing zero
             cell *new_cell = malloc(sizeof(cell));
             if (new_cell == NULL) {
@@ -353,9 +378,42 @@ big_integer *big_integer_multiply(big_integer *nb) {
             } else {
                 // Add one cell with 0 at the lowest power.
                 new_cell->digit = 0;
-                new_cell->next = nb->digits;
-                new_cell->digit = new_cell;
+                new_cell->next = a->digits;
+                a->digits = new_cell;
             }
+        }
+    }
+}
+
+/**
+ *  Returns a new pointer to a big_integer containing a/10.
+ */
+big_integer *big_integer_divide(big_integer *a) {
+    big_integer *b = big_integer_copy(a);       // Return a copy
+
+    if (b != NULL) {
+        if (b->digits != NULL) {
+            // There are digits, so nb != 0 => remove last digit ans free its memory
+            cell *last = b->digits;
+            b->digits = last->next;
+            free(last);
+        }
+
+        return  b;
+    } else {
+        return NULL;
+    }
+}
+
+/**
+ * Returns a pointer to a new big_integer containing a % 10
+ */
+big_integer *big_integer_modulo(big_integer *a) {
+    if (a != NULL) {
+        if (a->digits == NULL) {
+            return new_integer(0);
+        } else {
+            return new_integer(a->digits->digit);
         }
     }
 }
@@ -399,6 +457,10 @@ typedef struct node node;
 node *new_node(int k)
 {
   node *x = malloc(sizeof(node));
+  if (x == NULL) {
+      //TODO handle better
+      syntax_error();
+  }
   x->kind = k;
   return x;
 }
@@ -448,7 +510,7 @@ node *mult() {
 }
 
 
-node *sum() /* <sum> ::= <term>|<sum>"+"<term>|<sum>"-"<term> */
+node *sum() /* <sum> ::= <mult>|<sum>"+"<mult>|<sum>"-"<mult> */
 {
   node *x = mult();
 
@@ -590,7 +652,8 @@ enum { ILOAD, ISTORE, BIPUSH, DUP, POP, IADD, ISUB,
        GOTO, IFEQ, IFNE, IFLT, RETURN,
        PRNT, IFLE, IFGE, IFGT,
        BGLOAD, BGSTORE, BGPUSH,
-       BGADD, BGSUB, BGDUP};
+       BGADD, BGSUB, BGDUP,
+       BGMULT, BGDIV, BGMOD};
 
 #define BIG_INTEGER_LIMITER 127             // digits < 10
 
@@ -638,6 +701,12 @@ void c(node *x) {
             c(x->o1);
             c(x->o2);
             gi(BGSUB);
+            break;
+
+        case MULT   :
+            c(x->o1);
+            c(x->o2);
+            gi(BGMULT);
             break;
 
         case LT    :
@@ -829,6 +898,30 @@ void run()
             bi->count += 1;
             break;
         }
+          case BGMULT : {
+              big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
+              big_integer *c = big_integer_multiply(a,b);
+              sp[-2] = (int) c;
+              sp--;
+              //TODO free a and b
+              break;
+          }
+          case BGDIV  : {
+              big_integer *a = (big_integer *) sp[-1];
+              big_integer *c = big_integer_divide(a);
+              sp[-1] = (int) c;
+              sp--;
+              //TODO free a and b
+              break;
+          }
+          case BGMOD  : {
+              big_integer *a = (big_integer *) sp[-1];
+              big_integer *c = big_integer_modulo(a);
+              sp[-1] = (int) c;
+              sp--;
+              //TODO free a and b
+              break;
+          }
         case RETURN: return;
     }
 }
