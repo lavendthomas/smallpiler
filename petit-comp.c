@@ -276,7 +276,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
 
 
 
-        if (s > 10) {       // carry = s // 10 in Python, carry = s / 10 doesn't work
+        if (s >= 10) {       // carry = s // 10 in Python, carry = s / 10 doesn't work
             carry = 1;
         } else if (s < 0) {
             carry = -1;
@@ -411,7 +411,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
                     }
 
                     prev = c;
-                    if (cur_a != NULL)cur_a = cur_a->next;
+                    if (cur_a != NULL) cur_a = cur_a->next;
                 }
 
                 // We add pow trailing zeros
