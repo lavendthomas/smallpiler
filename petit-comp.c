@@ -368,20 +368,82 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
  */
 big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
     // Copy if useful
-    if (a != NULL) {
-        if (a->digits != NULL) {
-            // There are digits, so nb != 0 => add one trailing zero
-            cell *new_cell = malloc(sizeof(cell));
-            if (new_cell == NULL) {
-                //TODO better handle not enough memory errors
-                syntax_error();
-            } else {
-                // Add one cell with 0 at the lowest power.
-                new_cell->digit = 0;
-                new_cell->next = a->digits;
-                a->digits = new_cell;
+    if (a != NULL && b != NULL) {
+        if (a->digits == NULL || b->digits == NULL) {
+            return new_integer(0);
+        } else {
+
+            big_integer *product = new_integer(0);
+            product->sign = (a->sign == b->sign) ? POSITIVE : NEGATIVE;
+
+            int pow = 0;
+            big_integer *term;
+
+            cell *cur_b = b->digits;
+
+            while (cur_b != NULL) {
+                cell *cur_a = a->digits;
+                int carry = 0;
+                cell *prev = NULL;
+                term = new_integer(0);
+                while (cur_a != NULL || carry != 0) {
+                    cell *c = malloc(sizeof(cell));
+                    if (c == NULL) {
+                        // TODO better handle out of memory
+                        syntax_error();
+                    }
+                    int value;
+                    if (cur_a != NULL) {
+                        value = cur_a->digit * cur_b->digit + carry;
+                    } else {
+                        value = carry; // No digits left
+                    }
+
+
+                    carry = value / 10;     // We can use standard C divmod because all numbers
+                    value = value % 10;     // wil always be positive
+                    c->digit = value;
+
+                    if (prev != NULL) {
+                        prev->next = c;
+                    } else {
+                        term->digits = c;
+                    }
+
+                    prev = c;
+                    if (cur_a != NULL)cur_a = cur_a->next;
+                }
+
+                // We add pow trailing zeros
+
+                int j;
+                for (j=0; j<pow; j++) {
+                    cell *zero = malloc(sizeof(cell));
+                    if (zero == NULL) {
+                        // Better handle out of memory
+                        syntax_error();
+                    }
+                    zero->digit = 0;
+                    zero->next = term->digits;
+                    term->digits = zero;
+                }
+
+                pow++;
+                cur_b = cur_b->next;
+
+                // Add the term to the big sum
+                big_integer *old_product = product;
+                product = big_integer_sum(old_product, term);
+
+                big_integer_free(old_product);  // Free memory for temporary variables on heap
+                big_integer_free(term);
             }
+
+            return product;
         }
+
+    } else {
+        return NULL;
     }
 }
 
