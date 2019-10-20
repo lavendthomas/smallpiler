@@ -955,7 +955,7 @@ void run()
         case BGDUP: {
             sp++; sp[-1] = sp[-2];
             // Add one to the number of counts of big_integer
-            big_integer *bi = sp[-1];
+            big_integer *bi = (big_integer *) sp[-1];
             bi->count += 1;
             break;
         }
@@ -965,6 +965,8 @@ void run()
               sp[-2] = (int) c;
               sp--;
               //TODO free a and b
+              big_integer_free(a);
+              big_integer_free(b);
               break;
           }
           case BGDIV  : {
@@ -972,7 +974,9 @@ void run()
               big_integer *c = big_integer_divide(a);
               sp[-1] = (int) c;
               sp--;
+
               //TODO free a and b
+              big_integer_free(a);
               break;
           }
           case BGMOD  : {
@@ -981,6 +985,7 @@ void run()
               sp[-1] = (int) c;
               sp--;
               //TODO free a and b
+              big_integer_free(a);
               break;
           }
         case RETURN: return;
