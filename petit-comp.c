@@ -374,7 +374,6 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
         } else {
 
             big_integer *product = new_integer(0);
-            product->sign = (a->sign == b->sign) ? POSITIVE : NEGATIVE;
 
             int pow = 0;
             big_integer *term;
@@ -438,7 +437,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
                 big_integer_free(old_product);  // Free memory for temporary variables on heap
                 big_integer_free(term);
             }
-
+            product->sign = (a->sign == b->sign) ? POSITIVE : NEGATIVE;
             return product;
         }
 
