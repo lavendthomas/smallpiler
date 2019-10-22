@@ -10,11 +10,11 @@
 
 /* Analyseur lexical. */
 
-enum { DO_SYM, ELSE_SYM, IF_SYM, WHILE_SYM, LBRA, RBRA, LPAR,
+enum { DO_SYM, ELSE_SYM, IF_SYM, WHILE_SYM, PRINT_SYM, CONTINUE_SYM, BREAK_SYM, LBRA, RBRA, LPAR,
        RPAR, PLUS, MINUS, LESS, SEMI, EQUAL, INT, ID, EOI,
        TIMES, OVER, MODULO};
 
-char *words[] = { "do", "else", "if", "while", NULL };
+char *words[] = { "do", "else", "if", "while", "print", "continue", "break", NULL };
 
 int ch = ' ';
 int sym;
@@ -43,40 +43,34 @@ void next_sym()
       case '=': sym = EQUAL;  next_ch(); break;
       case EOF: sym = EOI;    next_ch(); break;
       default:
-        if (ch >= '0' && ch <= '9')
-          {
-            int_val = 0; /* overflow? */
+          if (ch >= '0' && ch <= '9') {
+              int_val = 0; /* overflow? */
 
-            while (ch >= '0' && ch <= '9')
-              {
-                int_val = int_val*10 + (ch - '0');
-                next_ch();
+              while (ch >= '0' && ch <= '9') {
+                  int_val = int_val * 10 + (ch - '0');
+                  next_ch();
+              }
+              sym = INT;
+          } else if (ch >= 'a' && ch <= 'z') {
+              int i = 0; /* overflow? */
+
+
+
+              while ((ch >= 'a' && ch <= 'z') || ch == '_') {
+                  id_name[i++] = ch;
+                  next_ch();
               }
 
-            sym = INT;
-          }
-        else if (ch >= 'a' && ch <= 'z')
-          {
-            int i = 0; /* overflow? */
+              id_name[i] = '\0';
+              sym = 0;
 
-            while ((ch >= 'a' && ch <= 'z') || ch == '_')
-              {
-                id_name[i++] = ch;
-                next_ch();
+              while (words[sym] != NULL && strcmp(words[sym], id_name) != 0)
+                  sym++;
+
+              if (words[sym] == NULL) {
+                  if (id_name[1] == '\0') sym = ID; else syntax_error();
               }
-
-            id_name[i] = '\0';
-            sym = 0;
-
-            while (words[sym]!=NULL && strcmp(words[sym], id_name)!=0)
-              sym++;
-
-            if (words[sym] == NULL)
-              {
-                if (id_name[1] == '\0') sym = ID; else syntax_error();
-              }
-          }
-        else syntax_error();
+          } else syntax_error();
     }
 }
 
@@ -86,7 +80,7 @@ void next_sym()
 
 enum { VAR, CST, ADD, SUB, LT, ASSIGN,
        IF1, IF2, WHILE, DO, EMPTY, SEQ, EXPR, PROG,
-       MULT, DIV10, MOD10};
+       MULT, DIV10, MOD10, PRINT, BREAK, CONTINUE};
 
 
 #define POSITIVE 0
@@ -686,12 +680,34 @@ node *statement()
         }
       next_sym();
     }
-  else                     /* <expr> ";" */
-    {
+  else if (sym == PRINT_SYM) {
+      x = new_node(PRINT);
+      next_sym();
+      x->o1 = paren_expr();
+
+      if (sym == SEMI) {
+          next_sym();
+      } else {
+          syntax_error();
+      }
+
+  } else if  (sym == BREAK_SYM)  {     /*  "break" ";" */
+
+      x = new_node(BREAK);
+      if (sym == SEMI) next_sym(); else syntax_error();
+
+  } else if  (sym == CONTINUE_SYM)  {     /*  "continue" ";" */
+
+      x = new_node(CONTINUE);
+      if (sym == SEMI) next_sym(); else syntax_error();
+
+  } else {         /* <expr> ";" */
+
       x = new_node(EXPR);
       x->o1 = expr();
       if (sym == SEMI) next_sym(); else syntax_error();
-    }
+
+  }
 
   return x;
 }
