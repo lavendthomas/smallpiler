@@ -888,11 +888,11 @@ struct linked_list {
     linked_list *next;
 } ;
 
-int globals[26];
+long globals[26];
 
 void run()
 {
-  int stack[1000], *sp = stack; /* overflow? */
+  long stack[1000], *sp = stack; /* overflow? */
   code *pc = object;
 
   for (;;)
@@ -948,14 +948,14 @@ void run()
             }
             nb->digits = first;
 
-            *sp++ = (int) nb;       // Add the pointer to the big_integer to the top of the stack.
+            *sp++ = (long) nb;       // Add the pointer to the big_integer to the top of the stack.
 
             break;
         }
         case BGADD : {
             big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
             big_integer *c = big_integer_sum(a,b);
-            sp[-2] = (int) c;
+            sp[-2] = (long) c;
             sp--;
             //TODO free a and b
             break;
@@ -963,7 +963,7 @@ void run()
         case BGSUB : {
             big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
             big_integer *c = big_integer_difference(a,b);
-            sp[-2] = (int) c;
+            sp[-2] = (long) c;
             sp--;
             //TODO free a and b
             break;
@@ -978,7 +978,7 @@ void run()
           case BGMULT : {
               big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
               big_integer *c = big_integer_multiply(a,b);
-              sp[-2] = (int) c;
+              sp[-2] = (long) c;
               sp--;
               //TODO free a and b
               big_integer_free(a);
@@ -988,7 +988,7 @@ void run()
           case BGDIV  : {
               big_integer *a = (big_integer *) sp[-1];
               big_integer *c = big_integer_divide(a);
-              sp[-1] = (int) c;
+              sp[-1] = (long) c;
               sp--;
 
               //TODO free a and b
@@ -998,7 +998,7 @@ void run()
           case BGMOD  : {
               big_integer *a = (big_integer *) sp[-1];
               big_integer *c = big_integer_modulo(a);
-              sp[-1] = (int) c;
+              sp[-1] = (long) c;
               sp--;
               //TODO free a and b
               big_integer_free(a);
