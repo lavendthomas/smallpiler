@@ -11,7 +11,7 @@
 /* Analyseur lexical. */
 
 enum { DO_SYM, ELSE_SYM, IF_SYM, WHILE_SYM, PRINT_SYM, CONTINUE_SYM, BREAK_SYM, LBRA, RBRA, LPAR,
-       RPAR, PLUS, MINUS, LESS, SEMI, EQUAL, INT, ID, EOI,
+       RPAR, PLUS, MINUS, LESS, LEQ, GREATER, GEQ, SEMI, EQUAL, INT, ID, EOI,
        TIMES, OVER, MODULO};
 
 char *words[] = { "do", "else", "if", "while", "print", "continue", "break", NULL };
@@ -29,19 +29,20 @@ void next_sym()
 {
   while (ch == ' ' || ch == '\n') next_ch();
   switch (ch)
-    { case '{': sym = LBRA;   next_ch(); break;
-      case '}': sym = RBRA;   next_ch(); break;
-      case '(': sym = LPAR;   next_ch(); break;
-      case ')': sym = RPAR;   next_ch(); break;
-      case '+': sym = PLUS;   next_ch(); break;
-      case '-': sym = MINUS;  next_ch(); break;
-      case '*': sym = TIMES;  next_ch(); break;
-      case '/': sym = OVER;   next_ch(); break;
-      case '%': sym = MODULO; next_ch(); break;
-      case '<': sym = LESS;   next_ch(); break;
-      case ';': sym = SEMI;   next_ch(); break;
-      case '=': sym = EQUAL;  next_ch(); break;
-      case EOF: sym = EOI;    next_ch(); break;
+    { case '{': sym = LBRA;    next_ch(); break;
+      case '}': sym = RBRA;    next_ch(); break;
+      case '(': sym = LPAR;    next_ch(); break;
+      case ')': sym = RPAR;    next_ch(); break;
+      case '+': sym = PLUS;    next_ch(); break;
+      case '-': sym = MINUS;   next_ch(); break;
+      case '*': sym = TIMES;   next_ch(); break;
+      case '/': sym = OVER;    next_ch(); break;
+      case '%': sym = MODULO;  next_ch(); break;
+      case '<': sym = LESS;    next_ch(); break;
+      case '>': sym = GREATER; next_ch(); break;
+      case ';': sym = SEMI;    next_ch(); break;
+      case '=': sym = EQUAL;   next_ch(); break;
+      case EOF: sym = EOI;     next_ch(); break;
       default:
           if (ch >= '0' && ch <= '9') {
               int_val = 0; /* overflow? */
@@ -78,7 +79,7 @@ void next_sym()
 
 /* Analyseur syntaxique. */
 
-enum { VAR, CST, ADD, SUB, LT, ASSIGN,
+enum { VAR, CST, ADD, SUB, LT, GT, LE, GE, ASSIGN,
        IF1, IF2, WHILE, DO, EMPTY, SEQ, EXPR, PROG,
        MULT, DIV10, MOD10, PRINT, BREAK, CONTINUE};
 
@@ -624,13 +625,30 @@ node *test() /* <test> ::= <sum> | <sum> "<" <sum> */
 {
   node *x = sum();
 
-  if (sym == LESS)
-    {
-      node *t = x;
-      x = new_node(LT);
-      next_sym();
-      x->o1 = t;
-      x->o2 = sum();
+    if (sym == LESS) {
+        node *t = x;
+        x = new_node(LT);
+        next_sym();
+        x->o1 = t;
+        x->o2 = sum();
+    } else if (sym == GREATER) {
+        node *t = x;
+        x = new_node(GT);
+        next_sym();
+        x->o1 = t;
+        x->o2 = sum();
+    } else if (sym == LEQ) {
+        node *t = x;
+        x = new_node(LE);
+        next_sym();
+        x->o1 = t;
+        x->o2 = sum();
+    } else if (sym == GEQ) {
+        node *t = x;
+        x = new_node(GE);
+        next_sym();
+        x->o1 = t;
+        x->o2 = sum();
     }
 
   return x;
@@ -841,6 +859,55 @@ void c(node *x) {
             g(BIG_INTEGER_LIMITER);
             break;
 
+        case LE     :
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 1 to the stack
+            g(1);
+            g(BIG_INTEGER_LIMITER);
+            c(x->o1);
+            c(x->o2);
+            gi(BGSUB);
+            gi(IFLE);
+            g(5);       // jump 5 bytes (-> break)
+            gi(BGPOP);
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 0 to the stack
+            g(BIG_INTEGER_LIMITER);
+            break;
+
+
+        case GT     :
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 1 to the stack
+            g(1);
+            g(BIG_INTEGER_LIMITER);
+            c(x->o1);
+            c(x->o2);
+            gi(BGSUB);
+            gi(IFGT);
+            g(5);       // jump 5 bytes (-> break)
+            gi(BGPOP);
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 0 to the stack
+            g(BIG_INTEGER_LIMITER);
+            break;
+
+        case GE     :
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 1 to the stack
+            g(1);
+            g(BIG_INTEGER_LIMITER);
+            c(x->o1);
+            c(x->o2);
+            gi(BGSUB);
+            gi(IFGE);
+            g(5);       // jump 5 bytes (-> break)
+            gi(BGPOP);
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 0 to the stack
+            g(BIG_INTEGER_LIMITER);
+            break;
+
         case ASSIGN: // Replace by globals[i] = globals[j] in virtual machine
             c(x->o2);
             gi(BGDUP);
@@ -945,6 +1012,15 @@ void run()
         case IFEQ  : if (big_integer_is_zero((big_integer *) *(--sp))) pc += *pc; else pc++;        break;
         case IFNE  : if (!big_integer_is_zero((big_integer *) *(--sp))) pc += *pc; else pc++;       break;
         case IFLT  : if (big_integer_is_negative((big_integer *) *(--sp))) pc += *pc; else pc++;    break;
+        case IFLE  : {
+            big_integer *nb = (big_integer *) *(--sp);
+            if (big_integer_is_negative(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;    break;
+        }
+          case IFGT  : if (big_integer_is_positive((big_integer *) *(--sp))) pc += *pc; else pc++;    break;
+        case IFGE  : {
+            big_integer *nb = (big_integer *) *(--sp);
+            if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;    break;
+        }
         case BGLOAD: *sp++ = globals[*pc++];             break;
         case BGSTORE: globals[*pc++] = *--sp;            break;
         case BGPOP : {
