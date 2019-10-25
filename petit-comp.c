@@ -233,6 +233,35 @@ int big_integer_size(big_integer *integer) {
     return size;
 }
 
+/**
+ * Removes last element(s) of the list of digits if they are equal to zero
+ */
+int _big_integer_trim(big_integer *n) {
+    if (n != NULL) {
+        if (n->digits != NULL) {
+            cell *last_non_zero = NULL;
+            cell *d = n->digits;
+
+            while (d != NULL) {
+                if (d->digit != 0) {
+                    last_non_zero = d;
+                }
+                d = d->next;
+            }
+
+            if (last_non_zero != NULL) {
+                // Remove and free all nodes after this one
+                _big_integer_cell_free(last_non_zero->next);
+                last_non_zero->next = NULL;
+            } else {
+                _big_integer_cell_free(n->digits);
+                n->digits = NULL;
+            }
+
+        }
+    }
+}
+
 
 /**
  *  Returns a new big_integer containing the sum of the two integers in parameters.
@@ -337,6 +366,8 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
 
     sum->digits = first;
     sum->sign = sign;
+
+    _big_integer_trim(sum);
 
     return sum;
 }
