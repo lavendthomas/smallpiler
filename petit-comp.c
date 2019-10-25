@@ -324,37 +324,37 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
     return sum;
 }
 
- /**
-  * Returns a pointer to a copy of a
-  */
- big_integer *big_integer_copy(big_integer *a) {
-     if (a != NULL) {
-         big_integer *cp = new_integer(0);
-         cell *prev = NULL, *first = NULL;
-         cell *current = a->digits;
-         cp->sign = a->sign;
+/**
+* Returns a pointer to a copy of a
+*/
+big_integer *big_integer_copy(big_integer *a) {
+ if (a != NULL) {
+     big_integer *cp = new_integer(0);
+     cell *prev = NULL, *first = NULL;
+     cell *current = a->digits;
+     cp->sign = a->sign;
 
-         while (current != NULL) {
-             cell *c = malloc(sizeof(cell));
+     while (current != NULL) {
+         cell *c = malloc(sizeof(cell));
 
-             if (c == NULL) {
-                 //TODO better error handling : Not enough memory
-                 syntax_error();
-             }
-
-             c->next = NULL;
-             if (prev != NULL) {
-                 prev->next = c;
-             } else {
-                 // If it has no previous node, then it's the first one
-                 first = c;
-             }
-             c->digit = current->digit;
-             prev = c;
+         if (c == NULL) {
+             //TODO better error handling : Not enough memory
+             syntax_error();
          }
-         cp->digits = first;
+
+         c->next = NULL;
+         if (prev != NULL) {
+             prev->next = c;
+         } else {
+             // If it has no previous node, then it's the first one
+             first = c;
+         }
+         c->digit = current->digit;
+         prev = c;
      }
+     cp->digits = first;
  }
+}
 
 
 /**
@@ -490,6 +490,45 @@ big_integer *big_integer_difference(big_integer *bi1, big_integer *bi2) {
     return diff;
 }
 
+
+/**
+ * Returns 0 if and only if n != 0
+ */
+int big_integer_is_zero(big_integer *n) {
+    if (n != NULL) {
+        return n->digits == NULL;
+    } else {
+        //TODO better nullpointerexception
+        syntax_error();
+        return 0;
+    }
+}
+
+/**
+ * Returns 0 if and only if n > 0
+ */
+int big_integer_is_positive(big_integer *n) {
+    if (n != NULL) {
+        return n->digits != NULL && n->sign == POSITIVE;
+    } else {
+        //TODO better nullpointerexception
+        syntax_error();
+        return 0;
+    }
+}
+
+/**
+ * Returns 0 if and only if n > 0
+ */
+int big_integer_is_negative(big_integer *n) {
+    if (n != NULL) {
+        return n->digits != NULL && n->sign == NEGATIVE;
+    } else {
+        //TODO better nullpointerexception
+        syntax_error();
+        return 0;
+    }
+}
 
 
 
@@ -728,7 +767,7 @@ node *program()  /* <program> ::= <stat> */
 enum { ILOAD, ISTORE, BIPUSH, DUP, POP, IADD, ISUB,
        GOTO, IFEQ, IFNE, IFLT, RETURN,
        PRNT, IFLE, IFGE, IFGT,
-       BGLOAD, BGSTORE, BGPUSH,
+       BGLOAD, BGSTORE, BGPUSH, BGPOP,
        BGADD, BGSUB, BGDUP,
        BGMULT, BGDIV, BGMOD};
 
@@ -787,29 +826,26 @@ void c(node *x) {
             break;
 
         case LT    :
-            gi(BIPUSH);
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 1 to the stack
             g(1);
+            g(BIG_INTEGER_LIMITER);
             c(x->o1);
             c(x->o2);
-            gi(ISUB);
+            gi(BGSUB);
             gi(IFLT);
-            g(4);
-            gi(POP);
-            gi(BIPUSH);
-            g(0);
+            g(5);       // jump 5 bytes (-> break)
+            gi(BGPOP);
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 0 to the stack
+            g(BIG_INTEGER_LIMITER);
             break;
 
         case ASSIGN: // Replace by globals[i] = globals[j] in virtual machine
-            /*c(x->o2);
-            gi(DUP);
-            gi(ISTORE);
-            g(x->o1->val.variable);*/
-
             c(x->o2);
             gi(BGDUP);
             gi(BGSTORE);
             g(x->o1->val.variable);
-
             break;
 
         case IF1   : {
@@ -906,11 +942,16 @@ void run()
         case IADD  : sp[-2] = sp[-2] + sp[-1]; --sp;     break;
         case ISUB  : sp[-2] = sp[-2] - sp[-1]; --sp;     break;
         case GOTO  : pc += *pc;                          break;
-        case IFEQ  : if (*--sp==0) pc += *pc; else pc++; break;
-        case IFNE  : if (*--sp!=0) pc += *pc; else pc++; break;
-        case IFLT  : if (*--sp< 0) pc += *pc; else pc++; break;
+        case IFEQ  : if (big_integer_is_zero((big_integer *) *(--sp))) pc += *pc; else pc++;        break;
+        case IFNE  : if (!big_integer_is_zero((big_integer *) *(--sp))) pc += *pc; else pc++;       break;
+        case IFLT  : if (big_integer_is_negative((big_integer *) *(--sp))) pc += *pc; else pc++;    break;
         case BGLOAD: *sp++ = globals[*pc++];             break;
         case BGSTORE: globals[*pc++] = *--sp;            break;
+        case BGPOP : {
+            big_integer_free((big_integer *) sp);
+            --sp;
+            break;
+        }
         case BGPUSH : {
             // Push a pointer to a big_integer to the top of the stack
 
