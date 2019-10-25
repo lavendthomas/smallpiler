@@ -38,8 +38,24 @@ void next_sym()
       case '*': sym = TIMES;   next_ch(); break;
       case '/': sym = OVER;    next_ch(); break;
       case '%': sym = MODULO;  next_ch(); break;
-      case '<': sym = LESS;    next_ch(); break;
-      case '>': sym = GREATER; next_ch(); break;
+      case '<': {
+          sym = LESS;
+          next_ch();
+          if (ch == '=') {
+              sym = LEQ;
+              next_ch();
+          }
+          break;
+      }
+      case '>': {
+          sym = GREATER;
+          next_ch();
+          if (ch == '=') {
+              sym = GEQ;
+              next_ch();
+          }
+          break;
+      }
       case ';': sym = SEMI;    next_ch(); break;
       case '=': sym = EQUAL;   next_ch(); break;
       case EOF: sym = EOI;     next_ch(); break;
