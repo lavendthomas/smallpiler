@@ -11,7 +11,7 @@
 /* Analyseur lexical. */
 
 enum { DO_SYM, ELSE_SYM, IF_SYM, WHILE_SYM, PRINT_SYM, CONTINUE_SYM, BREAK_SYM, LBRA, RBRA, LPAR,
-       RPAR, PLUS, MINUS, LESS, LEQ, GREATER, GEQ, SEMI, EQUAL, INT, ID, EOI,
+       RPAR, PLUS, MINUS, LESS, LEQ, GREATER, GEQ, SEMI, EQUAL, INT, ID, EOI, EQUALS, DIFFERENT,
        TIMES, OVER, MODULO};
 
 char *words[] = { "do", "else", "if", "while", "print", "continue", "break", NULL };
@@ -57,7 +57,26 @@ void next_sym()
           break;
       }
       case ';': sym = SEMI;    next_ch(); break;
-      case '=': sym = EQUAL;   next_ch(); break;
+      case '=': {
+          sym = EQUAL;
+          next_ch();
+          if (ch == '=') {
+              sym = EQUALS;
+              next_ch();
+          }
+          break;
+      }
+      case '!': {
+          next_ch();
+          if (ch == '=') {
+              sym = DIFFERENT;
+              next_ch();
+          } else {
+              // TODO Excepted !=, got ! + ch
+              syntax_error();
+          }
+          break;
+      }
       case EOF: sym = EOI;     next_ch(); break;
       default:
           if (ch >= '0' && ch <= '9') {
@@ -95,7 +114,7 @@ void next_sym()
 
 /* Analyseur syntaxique. */
 
-enum { VAR, CST, ADD, SUB, LT, GT, LE, GE, ASSIGN,
+enum { VAR, CST, ADD, SUB, LT, GT, LE, GE, EQ, NQ, ASSIGN,
        IF1, IF2, WHILE, DO, EMPTY, SEQ, EXPR, PROG,
        MULT, DIV10, MOD10, PRINT, BREAK, CONTINUE};
 
@@ -696,6 +715,18 @@ node *test() /* <test> ::= <sum> | <sum> "<" <sum> */
         next_sym();
         x->o1 = t;
         x->o2 = sum();
+    } else if (sym == EQUALS) {
+        node *t = x;
+        x = new_node(EQ);
+        next_sym();
+        x->o1 = t;
+        x->o2 = sum();
+    } else if (sym == DIFFERENT) {
+        node *t = x;
+        x = new_node(NQ);
+        next_sym();
+        x->o1 = t;
+        x->o2 = sum();
     }
 
   return x;
@@ -792,6 +823,7 @@ node *statement()
       if (sym == SEMI) {
           next_sym();
       } else {
+          //TODO expected a ; after rint instruction
           syntax_error();
       }
 
@@ -948,6 +980,36 @@ void c(node *x) {
             c(x->o2);
             gi(BGSUB);
             gi(IFGE);
+            g(5);       // jump 5 bytes (-> break)
+            gi(BGPOP);
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 0 to the stack
+            g(BIG_INTEGER_LIMITER);
+            break;
+        case EQ      :
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 1 to the stack
+            g(1);
+            g(BIG_INTEGER_LIMITER);
+            c(x->o1);
+            c(x->o2);
+            gi(BGSUB);
+            gi(IFEQ);
+            g(5);       // jump 5 bytes (-> break)
+            gi(BGPOP);
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 0 to the stack
+            g(BIG_INTEGER_LIMITER);
+            break;
+        case NQ     :
+            gi(BGPUSH);
+            g(POSITIVE);        // Push 1 to the stack
+            g(1);
+            g(BIG_INTEGER_LIMITER);
+            c(x->o1);
+            c(x->o2);
+            gi(BGSUB);
+            gi(IFNE);
             g(5);       // jump 5 bytes (-> break)
             gi(BGPOP);
             gi(BGPUSH);
