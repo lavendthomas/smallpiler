@@ -1082,6 +1082,11 @@ void c(node *x) {
             gi(POP);
             break;
 
+        case PRINT :
+            gi(PRNT);
+            c(x->o1);
+            break;
+
         case PROG  :
             c(x->o1);
             gi(RETURN);
@@ -1201,35 +1206,41 @@ void run()
             bi->count += 1;
             break;
         }
-          case BGMULT : {
-              big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
-              big_integer *c = big_integer_multiply(a,b);
-              sp[-2] = (long) c;
-              sp--;
-              //TODO free a and b
-              big_integer_free(a);
-              big_integer_free(b);
-              break;
-          }
-          case BGDIV  : {
-              big_integer *a = (big_integer *) sp[-1];
-              big_integer *c = big_integer_divide(a);
-              sp[-1] = (long) c;
-              sp--;
+        case BGMULT : {
+            big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
+            big_integer *c = big_integer_multiply(a,b);
+            sp[-2] = (long) c;
+            sp--;
+            //TODO free a and b
+            big_integer_free(a);
+            big_integer_free(b);
+            break;
+        }
+        case BGDIV  : {
+            big_integer *a = (big_integer *) sp[-1];
+            big_integer *c = big_integer_divide(a);
+            sp[-1] = (long) c;
+            sp--;
 
-              //TODO free a and b
-              big_integer_free(a);
-              break;
-          }
-          case BGMOD  : {
-              big_integer *a = (big_integer *) sp[-1];
-              big_integer *c = big_integer_modulo(a);
-              sp[-1] = (long) c;
-              sp--;
-              //TODO free a and b
-              big_integer_free(a);
-              break;
-          }
+            //TODO free a and b
+            big_integer_free(a);
+            break;
+        }
+        case BGMOD  : {
+            big_integer *a = (big_integer *) sp[-1];
+            big_integer *c = big_integer_modulo(a);
+            sp[-1] = (long) c;
+            sp--;
+            //TODO free a and b
+            big_integer_free(a);
+            break;
+        }
+        case PRNT : {
+            printf("%c = ", 'a' + (char) *pc);
+            big_integer_print((big_integer *)globals[(int) *pc]);
+            printf("\n");
+            break;
+        }
         case RETURN: return;
     }
 }
@@ -1266,7 +1277,7 @@ int main()
   for (i=0; i<26; i++){
       if (globals[i] != 0) {
           printf("%c = ", 'a' + i);
-          big_integer_print(globals[i]);
+          big_integer_print((big_integer *)globals[(int) i]);
           printf("\n");
       }
   }
