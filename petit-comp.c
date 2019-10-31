@@ -665,13 +665,32 @@ node *mult(node *parent) {
             case MODULO : x = new_node(MOD10, parent); break;
         }
 
+        int old_sym = sym;
+
         next_sym();
         x->o1 = t;
         t->parent = x;
         x->o2 = term(x);
-        if (sym == OVER || sym == MODULO) {
+
+        if (old_sym == OVER || old_sym == MODULO) {
             // TODO check that the right term is a constant containing 10.
 
+            node *digit = x->o2;
+            if (digit == NULL) {
+                syntax_error("modulo/division operand invalid : expected 10 on the left term"); // TODO
+            } else if (digit->kind != CST ){
+                syntax_error("modulo/division operand invalid : expected a constant of 10 on the left term");
+            } else {
+                big_integer *ten = new_integer(10);
+                big_integer *diff = big_integer_difference(ten, digit->val.integer);
+
+                if (!big_integer_is_zero(diff)) { // a != 10
+                    syntax_error("modulo/division operand invalid : expected a 10 on the left term");
+                }
+
+                big_integer_free(ten);
+                big_integer_free(diff);
+            }
 
         }
     }
