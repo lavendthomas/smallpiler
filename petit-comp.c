@@ -1098,6 +1098,20 @@ void c(node *x) {
             gi(GOTO);
             g(0);       // Come back at the end of the while to patch this. 0 : value
             //TODO check that we are in a while loop
+            node *n = x;
+            while (n != NULL && n->kind != PROG) {
+                if (n->kind == WHILE) {
+                    // We found the nearest while to the continue
+                    break;
+                }
+                n = n->parent;
+            }
+            if (n == NULL || n->kind == PROG) {
+                // No while found, throw an error
+                //TODO Parsing continue, but no while found.
+                syntax_error("break out of loop");
+            }
+
             break;
         }
         case CONTINUE : {
@@ -1115,7 +1129,7 @@ void c(node *x) {
             if (n == NULL || n->kind == PROG) {
                 // No while found, throw an error
                 //TODO Parsing continue, but no while found.
-                syntax_error("");
+                syntax_error("break out of loop");
             }
 
             break;
