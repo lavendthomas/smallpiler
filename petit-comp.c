@@ -21,7 +21,7 @@ int sym;
 int int_val;
 char id_name[100];
 
-void syntax_error() { fprintf(stderr, "syntax error\n"); exit(1); }
+void syntax_error(char *msg) { fprintf(stderr, "syntax error: %s\n", msg); exit(1); }
 
 void next_ch() { ch = getchar(); }
 
@@ -73,7 +73,7 @@ void next_sym()
               next_ch();
           } else {
               // TODO Excepted !=, got ! + ch
-              syntax_error();
+              syntax_error("= was expected after !, invalid test, expected format is !=");
           }
           break;
       }
@@ -104,9 +104,9 @@ void next_sym()
                   sym++;
 
               if (words[sym] == NULL) {
-                  if (id_name[1] == '\0') sym = ID; else syntax_error();
+                  if (id_name[1] == '\0') sym = ID; else syntax_error("");
               }
-          } else syntax_error();
+          } else syntax_error("token is not part of the language");
     }
 }
 
@@ -143,7 +143,7 @@ big_integer *new_integer(int value) {
     big_integer *nb = malloc(sizeof(big_integer));
     if (nb == NULL) {
         //TODO better error handling : Not enough memory
-        syntax_error();
+        syntax_error("Not enough memory available to create big integer, malloc returned NULL");
     }
     nb->count = 1;
     if (value >= 0) {
@@ -169,7 +169,7 @@ big_integer *new_integer(int value) {
             cell *cell = malloc(sizeof(cell));
             if (cell == NULL) {
                 //TODO better error handling : Not enough memory
-                syntax_error();
+                syntax_error("Not enough memory available to create node, malloc returned NULL");
             }
             cell->next = NULL;
             if (prev != NULL) {
@@ -369,7 +369,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
 
         if (new_cell == NULL) {
             //TODO better error handling : Not enough memory
-            syntax_error();
+            syntax_error("Not enough memory available to create node, malloc returned NULL");
         }
 
         new_cell->digit = s;
@@ -406,7 +406,7 @@ big_integer *big_integer_copy(big_integer *a) {
 
          if (c == NULL) {
              //TODO better error handling : Not enough memory
-             syntax_error();
+             syntax_error("Not enough memory available to create pointer, malloc returned NULL");
          }
 
          c->next = NULL;
@@ -450,7 +450,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
                     cell *c = malloc(sizeof(cell));
                     if (c == NULL) {
                         // TODO better handle out of memory
-                        syntax_error();
+                        syntax_error("Not enough memory available to create cell, malloc returned NULL");
                     }
                     int value;
                     if (cur_a != NULL) {
@@ -481,7 +481,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
                     cell *zero = malloc(sizeof(cell));
                     if (zero == NULL) {
                         // Better handle out of memory
-                        syntax_error();
+                        syntax_error("Not enough memory available to create node, malloc returned NULL");
                     }
                     zero->digit = 0;
                     zero->next = term->digits;
@@ -566,7 +566,7 @@ int big_integer_is_zero(big_integer *n) {
         return n->digits == NULL;
     } else {
         //TODO better nullpointerexception
-        syntax_error();
+        syntax_error("");
         return 0;
     }
 }
@@ -579,7 +579,7 @@ int big_integer_is_positive(big_integer *n) {
         return n->digits != NULL && n->sign == POSITIVE;
     } else {
         //TODO better nullpointerexception
-        syntax_error();
+        syntax_error("");
         return 0;
     }
 }
@@ -592,7 +592,7 @@ int big_integer_is_negative(big_integer *n) {
         return n->digits != NULL && n->sign == NEGATIVE;
     } else {
         //TODO better nullpointerexception
-        syntax_error();
+        syntax_error("");
         return 0;
     }
 }
@@ -622,7 +622,7 @@ node *new_node(int k, node *parent)
   node *x = malloc(sizeof(node));
   if (x == NULL) {
       //TODO handle better
-      syntax_error();
+      syntax_error("");
   }
   x->kind = k;
   x->parent = parent;
@@ -664,6 +664,7 @@ node *mult(node *parent) {
             case MODULO : x = new_node(MOD10, parent); break;
         }
         if (sym == OVER || sym == MODULO) {
+
             // TODO check that the right term is a constant containing 10.
         }
         next_sym();
@@ -761,11 +762,11 @@ node *paren_expr(node *parent) /* <paren_expr> ::= "(" <expr> ")" */
 {
   node *x;
 
-  if (sym == LPAR) next_sym(); else syntax_error();
+  if (sym == LPAR) next_sym(); else syntax_error(" expecting (");
 
   x = expr(parent);
 
-  if (sym == RPAR) next_sym(); else syntax_error();
+  if (sym == RPAR) next_sym(); else syntax_error("syntax error: expecting )");
 
   return x;
 }
@@ -798,9 +799,9 @@ node *statement(node *parent)
       x = new_node(DO, parent);
       next_sym();
       x->o1 = statement(x);
-      if (sym == WHILE_SYM) next_sym(); else syntax_error();
+      if (sym == WHILE_SYM) next_sym(); else syntax_error("expecting while symbol");
       x->o2 = paren_expr(x);
-      if (sym == SEMI) next_sym(); else syntax_error();
+      if (sym == SEMI) next_sym(); else syntax_error("expecting ; missing closure");
     }
   else if (sym == SEMI)    /* ";" */
     {
@@ -830,25 +831,25 @@ node *statement(node *parent)
           next_sym();
       } else {
           //TODO expected a ; after rint instruction
-          syntax_error();
+          syntax_error("");
       }
 
   } else if  (sym == BREAK_SYM)  {     /*  "break" ";" */
 
       x = new_node(BREAK, parent);
       next_sym();
-      if (sym == SEMI) next_sym(); else syntax_error();
+      if (sym == SEMI) next_sym(); else syntax_error("expecting ; missing closure");
 
   } else if  (sym == CONTINUE_SYM)  {     /*  "continue" ";" */
 
       x = new_node(CONTINUE, parent);
-      if (sym == SEMI) next_sym(); else syntax_error();
+      if (sym == SEMI) next_sym(); else syntax_error("expecting ; missing closure");
 
   } else {         /* <expr> ";" */
 
       x = new_node(EXPR, parent);
       x->o1 = expr(x);
-      if (sym == SEMI) next_sym(); else syntax_error();
+      if (sym == SEMI) next_sym(); else syntax_error("expecting ; missing closure");
 
   }
 
@@ -860,7 +861,7 @@ node *program()  /* <program> ::= <stat> */
   node *x = new_node(PROG, NULL);
   next_sym();
   x->o1 = statement(x);
-  if (sym != EOI) syntax_error();
+  if (sym != EOI) syntax_error("");
   return x;
 }
 
@@ -1099,7 +1100,7 @@ void c(node *x) {
             if (n == NULL || n->kind == PROG) {
                 // No while found, throw an error
                 //TODO Parsing continue, but no while found.
-                syntax_error();
+                syntax_error("");
             }
 
             break;
@@ -1187,7 +1188,7 @@ void run()
             big_integer *nb = malloc(sizeof(big_integer));
             if (nb == NULL) {
                 //TODO better error handling : Not enough memory
-                syntax_error();
+                syntax_error("");
             }
             nb->count = 1;
             nb->sign = *pc++;
@@ -1200,7 +1201,7 @@ void run()
                 cell *cell = malloc(sizeof(cell));
                 if (!cell) {
                     //TODO better error handling : Not enough memory
-                    syntax_error();
+                    syntax_error("");
                 }
                 cell->next = NULL;
                 if (prev != NULL) {
