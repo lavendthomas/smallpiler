@@ -607,6 +607,8 @@ union val {
 struct node
   {
     int kind;
+    code *start;      // Points to the beginning of the bytecode of this operation
+    struct node *parent;
     struct node *o1;
     struct node *o2;
     struct node *o3;
@@ -615,7 +617,7 @@ struct node
 
 typedef struct node node;
 
-node *new_node(int k)
+node *new_node(int k, node *parent)
 {
   node *x = malloc(sizeof(node));
   if (x == NULL) {
@@ -623,202 +625,206 @@ node *new_node(int k)
       syntax_error();
   }
   x->kind = k;
+  x->parent = parent;
   return x;
 }
 
-node *paren_expr(); /* forward declaration */
+node *paren_expr(node *parent); /* forward declaration */
 
-node *term() /* <term> ::= <id> | <int> | <paren_expr> */
+node *term(node *parent) /* <term> ::= <id> | <int> | <paren_expr> */
 {
   node *x;
 
   if (sym == ID)           /* <term> ::= <id> */
     {
-      x = new_node(VAR);
+      x = new_node(VAR, parent);
       x->val.variable = id_name[0]-'a';
       next_sym();
     }
   else if (sym == INT)     /* <term> ::= <int> */
     {
-      x = new_node(CST);
+      x = new_node(CST, parent);
       x->val.integer = new_integer(int_val);
       next_sym();
     }
   else                     /* <term> ::= <paren_expr> */
-    x = paren_expr();
+    x = paren_expr(parent);
 
   return x;
 }
 
-node *mult() {
-    node *x = term();
+node *mult(node *parent) {
+    node *x = term(parent);
 
     while (sym == TIMES || sym == OVER || sym == MODULO) {
         node *t = x;
         switch (sym) {
-            case TIMES   : x = new_node(MULT); break;
-            case OVER  : x = new_node(DIV10); break;
-            case MODULO : x = new_node(MOD10); break;
+            case TIMES   : x = new_node(MULT, parent); break;
+            case OVER  : x = new_node(DIV10, parent); break;
+            case MODULO : x = new_node(MOD10, parent); break;
         }
         if (sym == OVER || sym == MODULO) {
             // TODO check that the right term is a constant containing 10.
         }
         next_sym();
         x->o1 = t;
-        x->o2 = term();
+        t->parent = x;
+        x->o2 = term(x);
     }
     return x;
 }
 
 
-node *sum() /* <sum> ::= <mult>|<sum>"+"<mult>|<sum>"-"<mult> */
+node *sum(node *parent) /* <sum> ::= <mult>|<sum>"+"<mult>|<sum>"-"<mult> */
 {
-  node *x = mult();
+  node *x = mult(parent);
 
   while (sym == PLUS || sym == MINUS)
     {
       node *t = x;
-      x = new_node(sym==PLUS ? ADD : SUB);
+      x = new_node(sym==PLUS ? ADD : SUB, parent);
       next_sym();
       x->o1 = t;
-      x->o2 = mult();
+      x->o2 = mult(x);
     }
 
   return x;
 }
 
-node *test() /* <test> ::= <sum> | <sum> "<" <sum> */
+node *test(node *parent) /* <test> ::= <sum> | <sum> "<" <sum> */
 {
-  node *x = sum();
+  node *x = sum(parent);
 
     if (sym == LESS) {
         node *t = x;
-        x = new_node(LT);
+        x = new_node(LT, parent);
         next_sym();
         x->o1 = t;
-        x->o2 = sum();
+        x->o2 = sum(x);
     } else if (sym == GREATER) {
         node *t = x;
-        x = new_node(GT);
+        x = new_node(GT, parent);
         next_sym();
         x->o1 = t;
-        x->o2 = sum();
+        x->o2 = sum(x);
     } else if (sym == LEQ) {
         node *t = x;
-        x = new_node(LE);
+        x = new_node(LE, parent);
         next_sym();
         x->o1 = t;
-        x->o2 = sum();
+        x->o2 = sum(x);
     } else if (sym == GEQ) {
         node *t = x;
-        x = new_node(GE);
+        x = new_node(GE, parent);
         next_sym();
         x->o1 = t;
-        x->o2 = sum();
+        x->o2 = sum(x);
     } else if (sym == EQUALS) {
         node *t = x;
-        x = new_node(EQ);
+        x = new_node(EQ, parent);
         next_sym();
         x->o1 = t;
-        x->o2 = sum();
+        x->o2 = sum(x);
     } else if (sym == DIFFERENT) {
         node *t = x;
-        x = new_node(NQ);
+        x = new_node(NQ, parent);
         next_sym();
         x->o1 = t;
-        x->o2 = sum();
+        x->o2 = sum(x);
     }
 
   return x;
 }
 
-node *expr() /* <expr> ::= <test> | <id> "=" <expr> */
+node *expr(node *parent) /* <expr> ::= <test> | <id> "=" <expr> */
 {
   node *x;
 
-  if (sym != ID) return test();
+  if (sym != ID) return test(parent);
 
-  x = test();
+  x = test(parent);
 
   if (sym == EQUAL)
     {
       node *t = x;
-      x = new_node(ASSIGN);
+      x = new_node(ASSIGN, parent);
       next_sym();
       x->o1 = t;
-      x->o2 = expr();
+      t->parent = x;
+      x->o2 = expr(x);
     }
 
   return x;
 }
 
-node *paren_expr() /* <paren_expr> ::= "(" <expr> ")" */
+node *paren_expr(node *parent) /* <paren_expr> ::= "(" <expr> ")" */
 {
   node *x;
 
   if (sym == LPAR) next_sym(); else syntax_error();
 
-  x = expr();
+  x = expr(parent);
 
   if (sym == RPAR) next_sym(); else syntax_error();
 
   return x;
 }
 
-node *statement()
+node *statement(node *parent)
 {
   node *x;
 
   if (sym == IF_SYM)       /* "if" <paren_expr> <stat> */
     {
-      x = new_node(IF1);
+      x = new_node(IF1, parent);
       next_sym();
-      x->o1 = paren_expr();
-      x->o2 = statement();
+      x->o1 = paren_expr(x);
+      x->o2 = statement(x);
       if (sym == ELSE_SYM) /* ... "else" <stat> */
         { x->kind = IF2;
           next_sym();
-          x->o3 = statement();
+          x->o3 = statement(x);
         }
     }
   else if (sym == WHILE_SYM) /* "while" <paren_expr> <stat> */
     {
-      x = new_node(WHILE);
+      x = new_node(WHILE, parent);
       next_sym();
-      x->o1 = paren_expr();
-      x->o2 = statement();
+      x->o1 = paren_expr(x);
+      x->o2 = statement(x);
     }
   else if (sym == DO_SYM)  /* "do" <stat> "while" <paren_expr> ";" */
     {
-      x = new_node(DO);
+      x = new_node(DO, parent);
       next_sym();
-      x->o1 = statement();
+      x->o1 = statement(x);
       if (sym == WHILE_SYM) next_sym(); else syntax_error();
-      x->o2 = paren_expr();
+      x->o2 = paren_expr(x);
       if (sym == SEMI) next_sym(); else syntax_error();
     }
   else if (sym == SEMI)    /* ";" */
     {
-      x = new_node(EMPTY);
+      x = new_node(EMPTY, parent);
       next_sym();
     }
   else if (sym == LBRA)    /* "{" { <stat> } "}" */
     {
-      x = new_node(EMPTY);
+      x = new_node(EMPTY, parent);
       next_sym();
       while (sym != RBRA)
         {
           node *t = x;
-          x = new_node(SEQ);
+          x = new_node(SEQ, parent);
           x->o1 = t;
-          x->o2 = statement();
+          t->parent = x;
+          x->o2 = statement(x);
         }
       next_sym();
     }
   else if (sym == PRINT_SYM) {
-      x = new_node(PRINT);
+      x = new_node(PRINT, parent);
       next_sym();
-      x->o1 = paren_expr();
+      x->o1 = paren_expr(x);
 
       if (sym == SEMI) {
           next_sym();
@@ -829,18 +835,19 @@ node *statement()
 
   } else if  (sym == BREAK_SYM)  {     /*  "break" ";" */
 
-      x = new_node(BREAK);
+      x = new_node(BREAK, parent);
+      next_sym();
       if (sym == SEMI) next_sym(); else syntax_error();
 
   } else if  (sym == CONTINUE_SYM)  {     /*  "continue" ";" */
 
-      x = new_node(CONTINUE);
+      x = new_node(CONTINUE, parent);
       if (sym == SEMI) next_sym(); else syntax_error();
 
   } else {         /* <expr> ";" */
 
-      x = new_node(EXPR);
-      x->o1 = expr();
+      x = new_node(EXPR, parent);
+      x->o1 = expr(x);
       if (sym == SEMI) next_sym(); else syntax_error();
 
   }
@@ -850,9 +857,9 @@ node *statement()
 
 node *program()  /* <program> ::= <stat> */
 {
-  node *x = new_node(PROG);
+  node *x = new_node(PROG, NULL);
   next_sym();
-  x->o1 = statement();
+  x->o1 = statement(x);
   if (sym != EOI) syntax_error();
   return x;
 }
@@ -1049,6 +1056,7 @@ void c(node *x) {
         }
 
         case WHILE : {
+            x->start = here;
             code *p1 = here, *p2;
             c(x->o1);
             gi(IFEQ);
@@ -1057,6 +1065,8 @@ void c(node *x) {
             gi(GOTO);
             fix(here++, p1);
             fix(p2, here);
+
+            // Parcourir les sous nodes < here et so on a un GOTO 0 alors on doit fix pour brancher en fin de while
             break;
         }
 
@@ -1066,6 +1076,32 @@ void c(node *x) {
             c(x->o2);
             gi(IFNE);
             fix(here++, p1);
+            break;
+        }
+
+        case BREAK : {
+            gi(GOTO);
+            g(0);       // Come back at the end of the while to patch this. 0 : value
+            break;
+        }
+        case CONTINUE : {
+            gi(GOTO);
+
+            node *n = x;
+            while (n != NULL && n->kind != PROG) {
+                if (n->kind == WHILE) {
+                    // We found the nearest while to the continue
+                    fix(here++, n->start);            // Go back to the start of the loop
+                    break;
+                }
+                n = n->parent;
+            }
+            if (n == NULL || n->kind == PROG) {
+                // No while found, throw an error
+                //TODO Parsing continue, but no while found.
+                syntax_error();
+            }
+
             break;
         }
 
@@ -1083,8 +1119,8 @@ void c(node *x) {
             break;
 
         case PRINT :
-            gi(PRNT);
             c(x->o1);
+            gi(PRNT);
             break;
 
         case PROG  :
@@ -1236,9 +1272,10 @@ void run()
             break;
         }
         case PRNT : {
-            printf("%c = ", 'a' + (char) *pc);
-            big_integer_print((big_integer *)globals[(int) *pc]);
+            //printf("%c = ", 'a' + *sp[-1]);
+            big_integer_print((big_integer *) sp[-1]);
             printf("\n");
+            sp--;
             break;
         }
         case RETURN: return;
@@ -1274,6 +1311,8 @@ int main()
 
   run();
 
+  /*
+
   for (i=0; i<26; i++){
       if (globals[i] != 0) {
           printf("%c = ", 'a' + i);
@@ -1281,6 +1320,7 @@ int main()
           printf("\n");
       }
   }
+   */
 
 
   return 0;
