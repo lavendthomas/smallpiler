@@ -843,6 +843,7 @@ node *statement(node *parent)
   } else if  (sym == CONTINUE_SYM)  {     /*  "continue" ";" */
 
       x = new_node(CONTINUE, parent);
+      next_sym();
       if (sym == SEMI) next_sym(); else syntax_error("expecting ; missing closure");
 
   } else {         /* <expr> ";" */
