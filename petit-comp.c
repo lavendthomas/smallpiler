@@ -418,6 +418,7 @@ big_integer *big_integer_copy(big_integer *a) {
          }
          c->digit = current->digit;
          prev = c;
+         current = current->next;
      }
      cp->digits = first;
  }
@@ -663,14 +664,16 @@ node *mult(node *parent) {
             case OVER  : x = new_node(DIV10, parent); break;
             case MODULO : x = new_node(MOD10, parent); break;
         }
-        if (sym == OVER || sym == MODULO) {
 
-            // TODO check that the right term is a constant containing 10.
-        }
         next_sym();
         x->o1 = t;
         t->parent = x;
         x->o2 = term(x);
+        if (sym == OVER || sym == MODULO) {
+            // TODO check that the right term is a constant containing 10.
+
+
+        }
     }
     return x;
 }
@@ -929,6 +932,16 @@ void c(node *x) {
             c(x->o1);
             c(x->o2);
             gi(BGMULT);
+            break;
+
+        case DIV10  :
+            c(x->o1);
+            gi(BGDIV);
+            break;
+
+        case MOD10  :
+            c(x->o1);
+            gi(BGMOD);
             break;
 
         case LT    :
@@ -1286,7 +1299,6 @@ void run()
             big_integer *a = (big_integer *) sp[-1];
             big_integer *c = big_integer_divide(a);
             sp[-1] = (long) c;
-            sp--;
 
             //TODO free a and b
             big_integer_free(a);
@@ -1296,7 +1308,7 @@ void run()
             big_integer *a = (big_integer *) sp[-1];
             big_integer *c = big_integer_modulo(a);
             sp[-1] = (long) c;
-            sp--;
+
             //TODO free a and b
             big_integer_free(a);
             break;
