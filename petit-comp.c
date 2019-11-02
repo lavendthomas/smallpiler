@@ -605,6 +605,9 @@ struct node
 
 struct node *make_node(){
     struct node *n = calloc(sizeof(struct node), 1);
+    if (n == NULL) {
+        runtime_error("Not enough memory available to create a node.");
+    }
     return n;
 }
 
