@@ -133,19 +133,30 @@ typedef struct big_integer {
     struct cell *digits;
 
 } big_integer;
-
+big_integer* make_big_integer(){
+    big_integer* b = calloc(sizeof(big_integer), 1);
+    if (b == NULL)
+        syntax_error("Not enough memory available to create big integer, malloc returned NULL");
+    b->count = 1;
+    return b;
+}
 typedef struct cell {
     char digit;
     struct cell *next;
 } cell;
 
-big_integer *new_integer(int value) {
-    big_integer *nb = malloc(sizeof(big_integer));
-    if (nb == NULL) {
+cell* make_cell(){
+    cell * c = calloc(sizeof(struct cell), 1);
+    if (c == NULL)
         //TODO better error handling : Not enough memory
-        syntax_error("Not enough memory available to create big integer, malloc returned NULL");
-    }
-    nb->count = 1;
+        syntax_error("Not enough memory available to create node, malloc returned NULL");
+
+    return c;
+}
+
+big_integer *new_integer(int value) {
+    big_integer *nb = make_big_integer();
+
     if (value >= 0) {
         nb->sign = POSITIVE;
     } else {
@@ -166,12 +177,7 @@ big_integer *new_integer(int value) {
             value /= modulo;
 
             // Add node to the big_integer
-            cell *cell = malloc(sizeof(cell));
-            if (cell == NULL) {
-                //TODO better error handling : Not enough memory
-                syntax_error("Not enough memory available to create node, malloc returned NULL");
-            }
-            cell->next = NULL;
+            cell *cell = make_cell();
             if (prev != NULL) {
                 prev->next = cell;
             } else {
@@ -255,7 +261,7 @@ int big_integer_size(big_integer *integer) {
 /**
  * Removes last element(s) of the list of digits if they are equal to zero
  */
-int _big_integer_trim(big_integer *n) {
+void _big_integer_trim(big_integer *n) {
     if (n != NULL) {
         if (n->digits != NULL) {
             cell *last_non_zero = NULL;
@@ -365,12 +371,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
         }
         s = MOD(s,10);
 
-        cell *new_cell = malloc(sizeof(cell));
-
-        if (new_cell == NULL) {
-            //TODO better error handling : Not enough memory
-            syntax_error("Not enough memory available to create node, malloc returned NULL");
-        }
+        cell *new_cell = make_cell();
 
         new_cell->digit = s;
         new_cell->next = NULL;
@@ -402,14 +403,8 @@ big_integer *big_integer_copy(big_integer *a) {
      cp->sign = a->sign;
 
      while (current != NULL) {
-         cell *c = malloc(sizeof(cell));
+         cell *c = make_cell();
 
-         if (c == NULL) {
-             //TODO better error handling : Not enough memory
-             syntax_error("Not enough memory available to create pointer, malloc returned NULL");
-         }
-
-         c->next = NULL;
          if (prev != NULL) {
              prev->next = c;
          } else {
@@ -421,7 +416,9 @@ big_integer *big_integer_copy(big_integer *a) {
          current = current->next;
      }
      cp->digits = first;
+     return cp;
  }
+ return NULL;
 }
 
 
@@ -448,11 +445,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
                 cell *prev = NULL;
                 term = new_integer(0);
                 while (cur_a != NULL || carry != 0) {
-                    cell *c = malloc(sizeof(cell));
-                    if (c == NULL) {
-                        // TODO better handle out of memory
-                        syntax_error("Not enough memory available to create cell, malloc returned NULL");
-                    }
+                    cell *c = make_cell();
                     int value;
                     if (cur_a != NULL) {
                         value = cur_a->digit * cur_b->digit + carry;
@@ -462,7 +455,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
 
 
                     carry = value / 10;     // We can use standard C divmod because all numbers
-                    value = value % 10;     // wil always be positive
+                    value = value % 10;     // will always be positive
                     c->digit = value;
 
                     if (prev != NULL) {
@@ -479,12 +472,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
 
                 int j;
                 for (j=0; j<pow; j++) {
-                    cell *zero = malloc(sizeof(cell));
-                    if (zero == NULL) {
-                        // Better handle out of memory
-                        syntax_error("Not enough memory available to create node, malloc returned NULL");
-                    }
-                    zero->digit = 0;
+                    cell *zero = make_cell();
                     zero->next = term->digits;
                     term->digits = zero;
                 }
@@ -539,6 +527,7 @@ big_integer *big_integer_modulo(big_integer *a) {
             return new_integer(a->digits->digit);
         }
     }
+    return NULL;
 }
 
 /**
@@ -615,16 +604,17 @@ struct node
     struct node *o3;
     union val val;
   };
-
+struct node* make_node(){
+    struct node *n = calloc(sizeof(struct node), 1);
+    if (n == NULL)
+        syntax_error("");
+    return n;
+}
 typedef struct node node;
 
 node *new_node(int k, node *parent)
 {
-  node *x = malloc(sizeof(node));
-  if (x == NULL) {
-      //TODO handle better
-      syntax_error("");
-  }
+  node *x = make_node();
   x->kind = k;
   x->parent = parent;
   return x;
@@ -1196,12 +1186,6 @@ void c(node *x) {
 
 /* Machine virtuelle. */
 
-typedef struct linked_list linked_list;
-
-struct linked_list {
-    code data;
-    linked_list *next;
-} ;
 
 long globals[26];
 
@@ -1234,7 +1218,12 @@ void run()
             if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;    break;
         }
         case BGLOAD: *sp++ = globals[*pc++];             break;
-        case BGSTORE: globals[*pc++] = *--sp;            break;
+        case BGSTORE: {
+            long p = *--sp;
+            ((big_integer *)p)->count++;
+            globals[*pc++] = p;
+            break;
+        }
         case BGPOP : {
             big_integer_free((big_integer *) sp);
             --sp;
@@ -1246,7 +1235,7 @@ void run()
             code read;
             cell *prev = NULL;
             cell *first = NULL;
-            big_integer *nb = malloc(sizeof(big_integer));
+            big_integer *nb = make_big_integer();
             if (nb == NULL) {
                 //TODO better error handling : Not enough memory
                 syntax_error("");
@@ -1257,9 +1246,8 @@ void run()
             read = *pc++;
 
             while (read != BIG_INTEGER_LIMITER) {
-
                 // Add node to the big_integer
-                cell *cell = malloc(sizeof(cell));
+                cell *cell = make_cell();
                 if (!cell) {
                     //TODO better error handling : Not enough memory
                     syntax_error("");
@@ -1278,7 +1266,6 @@ void run()
             nb->digits = first;
 
             *sp++ = (long) nb;       // Add the pointer to the big_integer to the top of the stack.
-
             break;
         }
         case BGADD : {
@@ -1286,7 +1273,9 @@ void run()
             big_integer *c = big_integer_sum(a,b);
             sp[-2] = (long) c;
             sp--;
-            //TODO free a and b
+
+            big_integer_free(a);
+            big_integer_free(b);
             break;
         }
         case BGSUB : {
@@ -1294,7 +1283,9 @@ void run()
             big_integer *c = big_integer_difference(a,b);
             sp[-2] = (long) c;
             sp--;
-            //TODO free a and b
+
+            big_integer_free(a);
+            big_integer_free(b);
             break;
         }
         case BGDUP: {
@@ -1310,8 +1301,8 @@ void run()
             sp[-2] = (long) c;
             sp--;
             //TODO free a and b
-            big_integer_free(a);
-            big_integer_free(b);
+            //big_integer_free(a);
+            //big_integer_free(b);
             break;
         }
         case BGDIV  : {
@@ -1319,7 +1310,6 @@ void run()
             big_integer *c = big_integer_divide(a);
             sp[-1] = (long) c;
 
-            //TODO free a and b
             big_integer_free(a);
             break;
         }
@@ -1328,12 +1318,10 @@ void run()
             big_integer *c = big_integer_modulo(a);
             sp[-1] = (long) c;
 
-            //TODO free a and b
             big_integer_free(a);
             break;
         }
         case PRNT : {
-            //printf("%c = ", 'a' + *sp[-1]);
             big_integer_print((big_integer *) sp[-1]);
             printf("\n");
             sp--;
@@ -1347,44 +1335,24 @@ void run()
 
 /* Programme principal. */
 
-int main()
-{
+int main() {
 
-  freopen("code.c","r",stdin);
-  int i;
+    freopen("codewo.c", "r", stdin);
+    int i;
 
-  c(program());
+    c(program());
 
 #ifdef SHOW_CODE
-  printf("\n");
+    printf("\n");
 #endif
 
-  for (i=0; i<26; i++)
-    globals[i] = 0;
-
-    int j;
-    for (j = 0; j < 1000; j++)
-    {
-        if (j > 0) printf(":");
-        printf("%02d", object[j]);
+    for (i = 0; i < 26; i++) {
+        globals[i] = 0;
     }
-    printf("\n");
 
-  run();
+    run();
 
-  /*
-
-  for (i=0; i<26; i++){
-      if (globals[i] != 0) {
-          printf("%c = ", 'a' + i);
-          big_integer_print((big_integer *)globals[(int) i]);
-          printf("\n");
-      }
-  }
-   */
-
-
-  return 0;
+    return 0;
 }
 
 /*---------------------------------------------------------------------------*/
