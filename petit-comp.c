@@ -1337,7 +1337,7 @@ void run()
 
 int main() {
 
-    freopen("codewo.c", "r", stdin);
+    freopen("code.c", "r", stdin);
     int i;
 
     c(program());
