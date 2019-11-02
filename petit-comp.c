@@ -623,6 +623,9 @@ node *new_node(int k, node *parent)
  */
 void syntax_tree_free(node *ast) {
     if (ast != NULL) {
+        if (ast->kind == CST) {
+            big_integer_free(ast->val.integer);
+        }
         syntax_tree_free(ast->o1);
         syntax_tree_free(ast->o2);
         syntax_tree_free(ast->o3);
@@ -1239,15 +1242,15 @@ void run()
             big_integer *nb = (--sp)->bi;
             if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;           break;
         }
-        case BGLOAD: *sp++ = globals[*pc++];                                                            break;
+        case BGLOAD: *sp++ = globals[*pc++]; sp[-1].bi->count++;                                        break;
         case BGSTORE: {
             big_integer *p = (--sp)->bi;
             globals[*pc++].bi = p;
-
+            //Don't need to free : +1 usage in globals but -1 usage in stack
             break;
         }
         case BGPOP : {
-            //big_integer_free(sp[-1].bi);
+            big_integer_free(sp[-1].bi);
             --sp;
             break;
         }
@@ -1287,8 +1290,8 @@ void run()
             sp[-2].bi = c;
             sp--;
 
-            //big_integer_free(a);
-            //big_integer_free(b);
+            big_integer_free(a);
+            big_integer_free(b);
             break;
         }
         case BGSUB : {
@@ -1314,8 +1317,8 @@ void run()
             sp[-2].bi =  c;
             sp--;
             //TODO free a and b
-            //big_integer_free(a);
-            //big_integer_free(b);
+            big_integer_free(a);
+            big_integer_free(b);
             break;
         }
         case BGDIV  : {
@@ -1323,7 +1326,7 @@ void run()
             big_integer *c = big_integer_divide(a);
             sp[-1].bi = c;
 
-            //big_integer_free(a);
+            big_integer_free(a);
             break;
         }
         case BGMOD  : {
@@ -1331,13 +1334,13 @@ void run()
             big_integer *c = big_integer_modulo(a);
             sp[-1].bi = c;
 
-            //big_integer_free(a);
+            big_integer_free(a);
             break;
         }
         case PRNT : {
             big_integer_print(sp[-1].bi);
             printf("\n");
-            //big_integer_free(sp[-1].bi);
+            big_integer_free(sp[-1].bi);
             sp--;
 
             break;
