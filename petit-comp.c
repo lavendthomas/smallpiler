@@ -16,13 +16,18 @@ enum { DO_SYM, ELSE_SYM, IF_SYM, WHILE_SYM, PRINT_SYM, CONTINUE_SYM, BREAK_SYM, 
 
 char *words[] = { "do", "else", "if", "while", "print", "continue", "break", NULL };
 
-int ch = (int) ' ';
-int sym;
-int int_val;
-char id_name[100];
 
 void syntax_error(char *msg);
 void runtime_error(char *msg);
+
+typedef struct big_integer big_integer;
+big_integer *new_integer(int value);
+void big_integer_add_digit(big_integer *bi, char digit);
+
+int ch = (int) ' ';
+int sym;
+char id_name[100];
+big_integer *int_val;
 
 void next_ch() { ch = getchar(); }
 
@@ -82,17 +87,15 @@ void next_sym()
       case EOF: sym = EOI;     next_ch(); break;
       default:
           if (ch >= '0' && ch <= '9') {
-              int_val = 0; /* overflow? */
+              int_val = new_integer(0);
 
               while (ch >= '0' && ch <= '9') {
-                  int_val = int_val * 10 + (ch - '0');
+                  big_integer_add_digit(int_val, ch - '0');
                   next_ch();
               }
               sym = INT;
           } else if (ch >= 'a' && ch <= 'z') {
               int i = 0; /* overflow? */
-
-
 
               while ((ch >= 'a' && ch <= 'z') || ch == '_') {
                   id_name[i++] = (char) ch;
@@ -194,6 +197,18 @@ big_integer *new_integer(int value) {
         nb->digits = (struct cell*) first;
     }
     return nb;
+}
+
+/*
+ * Add one digit as the last significant digit of the big_integer
+ */
+void big_integer_add_digit(big_integer *bi, char digit) {
+    if (bi != NULL) {
+        cell *new = make_cell();
+        new->digit = digit;
+        new->next = bi->digits;
+        bi->digits = new;
+    }
 }
 
 /**
@@ -630,7 +645,7 @@ node *term(node *parent) /* <term> ::= <id> | <int> | <paren_expr> */
   else if (sym == INT)     /* <term> ::= <int> */
     {
       x = new_node(CST, parent);
-      x->val.integer = new_integer(int_val);
+      x->val.integer = int_val;
       next_sym();
     }
   else                     /* <term> ::= <paren_expr> */
@@ -1369,12 +1384,14 @@ int main() {
 void syntax_error(char *msg) {
     fprintf(stderr, "syntax error: %s\n", msg);
     syntax_tree_free(ast);
+    globals_free();
     exit(1);
 }
 
 
 void runtime_error(char *msg) {
     fprintf(stderr, "runtime error: %s\n", msg);
+    syntax_tree_free(ast);
     globals_free();
     exit(2);
 }
