@@ -133,6 +133,7 @@ typedef struct big_integer {
     struct cell *digits;
 
 } big_integer;
+
 big_integer* make_big_integer(){
     big_integer* b = calloc(sizeof(big_integer), 1);
     if (b == NULL)
@@ -140,6 +141,7 @@ big_integer* make_big_integer(){
     b->count = 1;
     return b;
 }
+
 typedef struct cell {
     char digit;
     struct cell *next;
@@ -169,7 +171,7 @@ big_integer *new_integer(int value) {
     } else {
         int modulo = 10;
         cell *prev = NULL;
-        cell *first;
+        cell *first = NULL;
         while (value != 0) {
 
             // Get the digit at position modulo
@@ -184,10 +186,10 @@ big_integer *new_integer(int value) {
                 // If it has no previous node, then it's the first one
                 first = cell;
             }
-            cell->digit = digit;
+            cell->digit = (char) digit;
             prev = cell;
         }
-        nb->digits = first;
+        nb->digits = (struct cell*) first;
     }
     return nb;
 }
@@ -604,12 +606,14 @@ struct node
     struct node *o3;
     union val val;
   };
-struct node* make_node(){
+
+struct node *make_node(){
     struct node *n = calloc(sizeof(struct node), 1);
     if (n == NULL)
         syntax_error("");
     return n;
 }
+
 typedef struct node node;
 
 node *new_node(int k, node *parent)
@@ -618,6 +622,18 @@ node *new_node(int k, node *parent)
   x->kind = k;
   x->parent = parent;
   return x;
+}
+
+/**
+ * Frees the memory used by all the nodes of the abstract syntax tree
+ */
+void syntax_tree_free(node *ast) {
+    if (ast != NULL) {
+        syntax_tree_free(ast->o1);
+        syntax_tree_free(ast->o2);
+        syntax_tree_free(ast->o3);
+        free(ast);
+    }
 }
 
 node *paren_expr(node *parent); /* forward declaration */
@@ -1189,6 +1205,19 @@ void c(node *x) {
 
 long globals[26];
 
+/**
+ * Frees the memory used by the global variables.
+ */
+void globals_free() {
+    // Impossible to unassign a variable, so if it has been assigned at least one, the global variable
+    // will point to a valid big_integer.
+    for (int i=0; i<26; i++) {
+        if (globals[i] != 0) {
+            big_integer_free((big_integer *) globals[i]);
+        }
+    }
+}
+
 void run()
 {
   long stack[1000], *sp = stack; /* overflow? */
@@ -1340,7 +1369,10 @@ int main() {
     freopen("code.c", "r", stdin);
     int i;
 
-    c(program());
+    node *ast = program();
+    c(ast);
+    syntax_tree_free(ast);
+
 
 #ifdef SHOW_CODE
     printf("\n");
@@ -1351,6 +1383,8 @@ int main() {
     }
 
     run();
+
+    globals_free();
 
     return 0;
 }
