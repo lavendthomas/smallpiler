@@ -90,7 +90,7 @@ void next_sym()
               int_val = new_integer(0);
 
               while (ch >= '0' && ch <= '9') {
-                  big_integer_add_digit(int_val, ch - '0');
+                  big_integer_add_digit(int_val, (char) (ch - '0'));
                   next_ch();
               }
               sym = INT;
@@ -666,6 +666,7 @@ node *mult(node *parent) {
             case TIMES   : x = new_node(MULT, parent);  break;
             case OVER    : x = new_node(DIV10, parent); break;
             case MODULO  : x = new_node(MOD10, parent); break;
+            default:                                       break; // Just to remove the warning :)
         }
 
         int old_sym = sym;
