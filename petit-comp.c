@@ -16,12 +16,13 @@ enum { DO_SYM, ELSE_SYM, IF_SYM, WHILE_SYM, PRINT_SYM, CONTINUE_SYM, BREAK_SYM, 
 
 char *words[] = { "do", "else", "if", "while", "print", "continue", "break", NULL };
 
-int ch = ' ';
+int ch = (int) ' ';
 int sym;
 int int_val;
 char id_name[100];
 
-void syntax_error(char* msg);
+void syntax_error(char *msg);
+void runtime_error(char *msg);
 
 void next_ch() { ch = getchar(); }
 
@@ -72,8 +73,9 @@ void next_sym()
               sym = DIFFERENT;
               next_ch();
           } else {
-              // TODO Excepted !=, got ! + ch
-              syntax_error("= was expected after !, invalid test, expected format is !=");
+              char dest[100] = "= was expected after !, invalid test, expected format is !=, received: !";
+              char got[2] = {(char) ch, 0};
+              syntax_error(strcat(dest, got));
           }
           break;
       }
@@ -93,7 +95,7 @@ void next_sym()
 
 
               while ((ch >= 'a' && ch <= 'z') || ch == '_') {
-                  id_name[i++] = ch;
+                  id_name[i++] = (char) ch;
                   next_ch();
               }
 
@@ -136,8 +138,9 @@ typedef struct big_integer {
 
 big_integer* make_big_integer(){
     big_integer* b = calloc(sizeof(big_integer), 1);
-    if (b == NULL)
-        syntax_error("Not enough memory available to create big integer, malloc returned NULL");
+    if (b == NULL) {
+        runtime_error("Not enough memory available to create big integer.");
+    }
     b->count = 1;
     return b;
 }
@@ -149,10 +152,9 @@ typedef struct cell {
 
 cell* make_cell(){
     cell * c = calloc(sizeof(struct cell), 1);
-    if (c == NULL)
-        //TODO better error handling : Not enough memory
-        syntax_error("Not enough memory available to create node, malloc returned NULL");
-
+    if (c == NULL) {
+        runtime_error("Not enough memory available to create a cell.");
+    }
     return c;
 }
 
@@ -170,8 +172,8 @@ big_integer *new_integer(int value) {
         nb->digits = NULL;
     } else {
         int modulo = 10;
-        cell *prev = NULL;
-        cell *first = NULL;
+        struct cell *prev = NULL;
+        struct cell *first = NULL;
         while (value != 0) {
 
             // Get the digit at position modulo
@@ -196,7 +198,6 @@ big_integer *new_integer(int value) {
 
 /**
  * Frees the memory used by the cell n and all the following cells it points to.
- * @param n
  */
 void _big_integer_cell_free(cell *n) {
     if (n != NULL) {
@@ -209,7 +210,6 @@ void _big_integer_cell_free(cell *n) {
  * Call this function when you won't use your pointer to this big_integer.
  *
  * The memory used by this number will be freed if no other pointer uses this big_integer.
- * @param n
  */
 void big_integer_free(big_integer *n) {
     if (n != NULL) {
@@ -242,22 +242,6 @@ void big_integer_print(big_integer *nb) {
         putchar('-');
     }
     _big_integer_print(nb->digits);
-}
-
-/**
- * Returns the number of digits of a big integer.
- *
- * WARNING : overflows if the number of digits in base 10 is higher than or
- *           equal to INT_MAX
- */
-int big_integer_size(big_integer *integer) {
-    int size = 0;
-    cell *this = integer->digits;
-    while (this != NULL) {
-        size++;
-        this = this->next;
-    }
-    return size;
 }
 
 /**
@@ -298,7 +282,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
 
     cell *d1 = bi1->digits;
     cell *d2 = bi2->digits;
-    int sign, sign1, sign2;
+    int sign = POSITIVE, sign1, sign2;
     cell *first = NULL, *prev = NULL;
     int carry = 0;
 
@@ -367,7 +351,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
             bi2->sign = (bi2->sign == POSITIVE) ? NEGATIVE : POSITIVE;
 
             sum->digits = first;
-            _big_integer_cell_free(sum);        // Free the previous instance we created but will never use
+            big_integer_free(sum);        // Free the previous instance we created but will never use
 
             return x;
         }
@@ -375,7 +359,7 @@ big_integer *big_integer_sum(big_integer *bi1, big_integer *bi2) {
 
         cell *new_cell = make_cell();
 
-        new_cell->digit = s;
+        new_cell->digit = (char) s;
         new_cell->next = NULL;
 
         if (prev != NULL) {
@@ -458,7 +442,7 @@ big_integer *big_integer_multiply(big_integer *a, big_integer *b) {
 
                     carry = value / 10;     // We can use standard C divmod because all numbers
                     value = value % 10;     // will always be positive
-                    c->digit = value;
+                    c->digit = (char) value;
 
                     if (prev != NULL) {
                         prev->next = c;
@@ -557,8 +541,7 @@ int big_integer_is_zero(big_integer *n) {
     if (n != NULL) {
         return n->digits == NULL;
     } else {
-        //TODO better nullpointerexception
-        syntax_error("");
+        runtime_error("Internal error");
         return 0;
     }
 }
@@ -570,8 +553,7 @@ int big_integer_is_positive(big_integer *n) {
     if (n != NULL) {
         return n->digits != NULL && n->sign == POSITIVE;
     } else {
-        //TODO better nullpointerexception
-        syntax_error("");
+        runtime_error("Internal error : addition by a NULL big_integer");
         return 0;
     }
 }
@@ -583,8 +565,7 @@ int big_integer_is_negative(big_integer *n) {
     if (n != NULL) {
         return n->digits != NULL && n->sign == NEGATIVE;
     } else {
-        //TODO better nullpointerexception
-        syntax_error("");
+        syntax_error("Internal error : substraction by a NULL big_integer");
         return 0;
     }
 }
@@ -599,7 +580,7 @@ union val {
 struct node
   {
     int kind;
-    code *start;      // Points to the beginning of the bytecode of this operation
+    code *start;            // Points to the beginning of the bytecode of this operation
     struct node *parent;
     struct node *o1;
     struct node *o2;
@@ -609,8 +590,6 @@ struct node
 
 struct node *make_node(){
     struct node *n = calloc(sizeof(struct node), 1);
-    if (n == NULL)
-        syntax_error("");
     return n;
 }
 
@@ -666,9 +645,9 @@ node *mult(node *parent) {
     while (sym == TIMES || sym == OVER || sym == MODULO) {
         node *t = x;
         switch (sym) {
-            case TIMES   : x = new_node(MULT, parent); break;
-            case OVER  : x = new_node(DIV10, parent); break;
-            case MODULO : x = new_node(MOD10, parent); break;
+            case TIMES   : x = new_node(MULT, parent);  break;
+            case OVER    : x = new_node(DIV10, parent); break;
+            case MODULO  : x = new_node(MOD10, parent); break;
         }
 
         int old_sym = sym;
@@ -678,12 +657,12 @@ node *mult(node *parent) {
         t->parent = x;
         x->o2 = term(x);
 
+        // Check that the right term of the modulo is 10.
         if (old_sym == OVER || old_sym == MODULO) {
-            // TODO check that the right term is a constant containing 10.
 
             node *digit = x->o2;
             if (digit == NULL) {
-                syntax_error("modulo/division operand invalid : expected 10 on the left term"); // TODO
+                syntax_error("modulo/division operand invalid : expected 10 on the left term");
             } else if (digit->kind != CST ){
                 syntax_error("modulo/division operand invalid : expected a constant of 10 on the left term");
             } else {
@@ -697,7 +676,6 @@ node *mult(node *parent) {
                 big_integer_free(ten);
                 big_integer_free(diff);
             }
-
         }
     }
     return x;
@@ -858,8 +836,7 @@ node *statement(node *parent)
       if (sym == SEMI) {
           next_sym();
       } else {
-          //TODO expected a ; after rint instruction
-          syntax_error("");
+          syntax_error("Expected ; after a print() call.");
       }
 
   } else if  (sym == BREAK_SYM)  {     /*  "break" ";" */
@@ -890,7 +867,7 @@ node *program()  /* <program> ::= <stat> */
   node *x = new_node(PROG, NULL);
   next_sym();
   x->o1 = statement(x);
-  if (sym != EOI) syntax_error("");
+  if (sym != EOI) syntax_error("The file should end by a end-of-file character (EOF).");
   return x;
 }
 
@@ -1134,18 +1111,17 @@ void c(node *x) {
         case BREAK : {
             gi(BREAK_PH);
             g(0);       // Come back at the end of the while to patch this. 0 : value
-            //TODO check that we are in a while loop
             node *n = x;
             while (n != NULL && n->kind != PROG) {
-                if (n->kind == WHILE) {
+                if (n->kind == WHILE || n->kind == DO) {
                     // We found the nearest while to the continue
                     break;
                 }
                 n = n->parent;
             }
+
             if (n == NULL || n->kind == PROG) {
                 // No while found, throw an error
-                //TODO Parsing continue, but no while found.
                 syntax_error("break out of loop");
             }
 
@@ -1156,7 +1132,7 @@ void c(node *x) {
 
             node *n = x;
             while (n != NULL && n->kind != PROG) {
-                if (n->kind == WHILE) {
+                if (n->kind == WHILE || n->kind == DO) {
                     // We found the nearest while to the continue
                     fix(here++, n->start);            // Go back to the start of the loop
                     break;
@@ -1165,7 +1141,6 @@ void c(node *x) {
             }
             if (n == NULL || n->kind == PROG) {
                 // No while found, throw an error
-                //TODO Parsing continue, but no while found.
                 syntax_error("break out of loop");
             }
 
@@ -1201,12 +1176,12 @@ void c(node *x) {
 
 /* Machine virtuelle. */
 
-typedef union global {
+typedef union reg {
   int nb;
   big_integer *bi;
-} global;
+} reg;
 
-long globals[26];
+reg globals[26];
 
 /**
  * Frees the memory used by the global variables.
@@ -1215,7 +1190,7 @@ void globals_free() {
     // Impossible to unassign a variable, so if it has been assigned at least one, the global variable
     // will point to a valid big_integer.
     for (int i=0; i<26; i++) {
-        if (globals[i] != 0) {
+        if (globals[i].nb != 0) {
             big_integer_free(globals[i].bi);
         }
     }
@@ -1223,55 +1198,50 @@ void globals_free() {
 
 void run()
 {
-  long stack[1000], *sp = stack; /* overflow? */
+  reg stack[1000], *sp = stack; /* overflow? */
   code *pc = object;
 
   for (;;)
     switch (*pc++)
       {
-        case ILOAD : *sp++ = globals[*pc++];             break;
-        case ISTORE: globals[*pc++] = *--sp;             break;
-        case BIPUSH: *sp++ = *pc++;                      break;
-        case DUP   : sp++; sp[-1] = sp[-2];              break;
-        case POP   : --sp;                               break;
-        case IADD  : sp[-2] = sp[-2] + sp[-1]; --sp;     break;
-        case ISUB  : sp[-2] = sp[-2] - sp[-1]; --sp;     break;
-        case GOTO  : pc += *pc;                          break;
-        case IFEQ  : if (big_integer_is_zero((big_integer *) *(--sp))) pc += *pc; else pc++;        break;
-        case IFNE  : if (!big_integer_is_zero((big_integer *) *(--sp))) pc += *pc; else pc++;       break;
-        case IFLT  : if (big_integer_is_negative((big_integer *) *(--sp))) pc += *pc; else pc++;    break;
+        case ILOAD : *sp++ = globals[*pc++];                                                            break;
+        case ISTORE: globals[*pc++] = *--sp;                                                            break;
+        case BIPUSH: sp++->nb = *pc++;                                                                  break;
+        case DUP   : sp++; sp[-1] = sp[-2];                                                             break;
+        case POP   : --sp;                                                                              break;
+        case IADD  : sp[-2].nb = sp[-2].nb + sp[-1].nb; --sp;                                           break;
+        case ISUB  : sp[-2].nb = sp[-2].nb - sp[-1].nb; --sp;                                           break;
+        case GOTO  : pc += *pc;                                                                         break;
+        case IFEQ  : if (big_integer_is_zero((--sp)->bi)) pc += *pc; else pc++;                         break;
+        case IFNE  : if (!big_integer_is_zero((--sp)->bi)) pc += *pc; else pc++;                        break;
+        case IFLT  : if (big_integer_is_negative((--sp)->bi)) pc += *pc; else pc++;                     break;
         case IFLE  : {
-            big_integer *nb = (big_integer *) *(--sp);
-            if (big_integer_is_negative(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;    break;
+            big_integer *nb = (--sp)->bi;
+            if (big_integer_is_negative(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;           break;
         }
-          case IFGT  : if (big_integer_is_positive((big_integer *) *(--sp))) pc += *pc; else pc++;    break;
+        case IFGT  : if (big_integer_is_positive((--sp)->bi)) pc += *pc; else pc++;                     break;
         case IFGE  : {
-            big_integer *nb = (big_integer *) *(--sp);
-            if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;    break;
+            big_integer *nb = (--sp)->bi;
+            if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;           break;
         }
-        case BGLOAD: *sp++ = globals[*pc++];             break;
+        case BGLOAD: *sp++ = globals[*pc++];                                                            break;
         case BGSTORE: {
-            long p = *--sp;
-            ((big_integer *)p)->count++;
-            globals[*pc++] = p;
+            big_integer *p = (--sp)->bi;
+            globals[*pc++].bi = p;
+
             break;
         }
         case BGPOP : {
-            big_integer_free((big_integer *) sp);
+            //big_integer_free(sp[-1].bi);
             --sp;
             break;
         }
         case BGPUSH : {
             // Push a pointer to a big_integer to the top of the stack
-
             code read;
             cell *prev = NULL;
             cell *first = NULL;
             big_integer *nb = make_big_integer();
-            if (nb == NULL) {
-                //TODO better error handling : Not enough memory
-                syntax_error("");
-            }
             nb->count = 1;
             nb->sign = *pc++;
             nb->digits = NULL;
@@ -1280,10 +1250,6 @@ void run()
             while (read != BIG_INTEGER_LIMITER) {
                 // Add node to the big_integer
                 cell *cell = make_cell();
-                if (!cell) {
-                    //TODO better error handling : Not enough memory
-                    syntax_error("");
-                }
                 cell->next = NULL;
                 if (prev != NULL) {
                     prev->next = cell;
@@ -1297,40 +1263,40 @@ void run()
             }
             nb->digits = first;
 
-            *sp++ = (long) nb;       // Add the pointer to the big_integer to the top of the stack.
+            sp++->bi = nb;       // Add the pointer to the big_integer to the top of the stack.
             break;
         }
         case BGADD : {
-            big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
+            big_integer *a = sp[-2].bi, *b = sp[-1].bi;
             big_integer *c = big_integer_sum(a,b);
-            sp[-2] = (long) c;
+            sp[-2].bi = c;
             sp--;
 
-            big_integer_free(a);
-            big_integer_free(b);
+            //big_integer_free(a);
+            //big_integer_free(b);
             break;
         }
         case BGSUB : {
-            big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
+            big_integer *a = sp[-2].bi, *b = sp[-1].bi;
             big_integer *c = big_integer_difference(a,b);
-            sp[-2] = (long) c;
+            sp[-2].bi = c;
             sp--;
 
-            big_integer_free(a);
-            big_integer_free(b);
+            //big_integer_free(a);
+            //big_integer_free(b);
             break;
         }
         case BGDUP: {
             sp++; sp[-1] = sp[-2];
             // Add one to the number of counts of big_integer
-            big_integer *bi = (big_integer *) sp[-1];
+            big_integer *bi = sp[-1].bi;
             bi->count += 1;
             break;
         }
         case BGMULT : {
-            big_integer *a = (big_integer *) sp[-2], *b = (big_integer *) sp[-1];
+            big_integer *a = sp[-2].bi, *b = sp[-1].bi;
             big_integer *c = big_integer_multiply(a,b);
-            sp[-2] = (long) c;
+            sp[-2].bi =  c;
             sp--;
             //TODO free a and b
             //big_integer_free(a);
@@ -1338,25 +1304,27 @@ void run()
             break;
         }
         case BGDIV  : {
-            big_integer *a = (big_integer *) sp[-1];
+            big_integer *a = sp[-1].bi;
             big_integer *c = big_integer_divide(a);
-            sp[-1] = (long) c;
+            sp[-1].bi = c;
 
-            big_integer_free(a);
+            //big_integer_free(a);
             break;
         }
         case BGMOD  : {
-            big_integer *a = (big_integer *) sp[-1];
+            big_integer *a = sp[-1].bi;
             big_integer *c = big_integer_modulo(a);
-            sp[-1] = (long) c;
+            sp[-1].bi = c;
 
-            big_integer_free(a);
+            //big_integer_free(a);
             break;
         }
         case PRNT : {
-            big_integer_print((big_integer *) sp[-1]);
+            big_integer_print(sp[-1].bi);
             printf("\n");
+            //big_integer_free(sp[-1].bi);
             sp--;
+
             break;
         }
         case RETURN: return;
@@ -1367,12 +1335,14 @@ void run()
 
 /* Programme principal. */
 
+node *ast;
+
 int main() {
 
     freopen("code.c", "r", stdin);
     int i;
 
-    node *ast = program();
+    ast = program();
     c(ast);
     syntax_tree_free(ast);
 
@@ -1382,7 +1352,7 @@ int main() {
 #endif
 
     for (i = 0; i < 26; i++) {
-        globals[i] = 0;
+        globals[i].nb = 0;
     }
 
     run();
@@ -1398,7 +1368,15 @@ int main() {
 
 void syntax_error(char *msg) {
     fprintf(stderr, "syntax error: %s\n", msg);
+    syntax_tree_free(ast);
     exit(1);
+}
+
+
+void runtime_error(char *msg) {
+    fprintf(stderr, "runtime error: %s\n", msg);
+    globals_free();
+    exit(2);
 }
 
 
