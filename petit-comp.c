@@ -1218,6 +1218,7 @@ void globals_free() {
     }
 }
 
+
 void run()
 {
   reg stack[1000], *sp = stack; /* overflow? */
@@ -1234,17 +1235,41 @@ void run()
         case IADD  : sp[-2].nb = sp[-2].nb + sp[-1].nb; --sp;                                           break;
         case ISUB  : sp[-2].nb = sp[-2].nb - sp[-1].nb; --sp;                                           break;
         case GOTO  : pc += *pc;                                                                         break;
-        case IFEQ  : if (big_integer_is_zero((--sp)->bi)) pc += *pc; else pc++;                         break;
-        case IFNE  : if (!big_integer_is_zero((--sp)->bi)) pc += *pc; else pc++;                        break;
-        case IFLT  : if (big_integer_is_negative((--sp)->bi)) pc += *pc; else pc++;                     break;
+        case IFEQ  : {
+            big_integer *n = (--sp)->bi;
+            if (big_integer_is_zero(n)) pc += *pc; else pc++;
+            big_integer_free(n);
+            break;
+        }
+        case IFNE  : {
+            big_integer *n = (--sp)->bi;
+            if (!big_integer_is_zero(n)) pc += *pc; else pc++;
+            big_integer_free(n);
+            break;
+        }
+        case IFLT  : {
+            big_integer *n = (--sp)->bi;
+            if (big_integer_is_negative((--sp)->bi)) pc += *pc; else pc++;
+            big_integer_free(n);
+            break;
+        }
         case IFLE  : {
             big_integer *nb = (--sp)->bi;
-            if (big_integer_is_negative(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;           break;
+            if (big_integer_is_negative(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;
+            big_integer_free(nb);
+            break;
         }
-        case IFGT  : if (big_integer_is_positive((--sp)->bi)) pc += *pc; else pc++;                     break;
+        case IFGT  : {
+            big_integer *n = (--sp)->bi;
+            if (big_integer_is_positive(n)) pc += *pc; else pc++;
+            big_integer_free(n);
+            break;
+        }
         case IFGE  : {
             big_integer *nb = (--sp)->bi;
-            if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;           break;
+            if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;
+            big_integer_free(nb);
+            break;
         }
         case BGLOAD: *sp++ = globals[*pc++]; sp[-1].bi->count++;                                        break;
         case BGSTORE: {
