@@ -920,7 +920,13 @@ void gen(code c) { *here++ = c; } /* overflow? */
 #define gi(c) gen(c)
 #endif
 
-void fix(code *src, code *dst) { *src = dst-src; } /* overflow? */
+void fix(code *src, code *dst) {
+    long dist = dst - src;
+    if (dist < -128 || dist > 127) {
+        syntax_error("Cannot branch outside of [-128, 127] range, please shorten your loops.");
+    }
+    *src = dist;
+}
 
 void c(node *x) {
     switch (x->kind) {
@@ -938,7 +944,8 @@ void c(node *x) {
                 digit = digit->next;
             }
             g(BIG_INTEGER_LIMITER);
-            // TODO should we free the big_integer here?
+            // Freeing the big_integer here could be done but is not necessary: its memory will be freed
+            // when the AST will be freed.
             break;
         case ADD   :
             c(x->o1);
@@ -1345,7 +1352,7 @@ void run()
             big_integer *c = big_integer_multiply(a,b);
             sp[-2].bi =  c;
             sp--;
-            //TODO free a and b
+
             big_integer_free(a);
             big_integer_free(b);
             break;
