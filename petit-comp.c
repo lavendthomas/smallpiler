@@ -907,6 +907,14 @@ enum { ILOAD, ISTORE, BIPUSH, DUP, POP, IADD, ISUB,
 #define BIG_INTEGER_LIMITER 127             // digits < 10
 
 
+struct bytecode {
+    code c;
+    struct bytecode *prev;
+    struct bytecode *next;
+};
+
+
+
 
 code object[1000], *here = object;
 
@@ -1507,20 +1515,26 @@ int main() {
 
 /* Gestion des erreurs. */
 
-void syntax_error(char *msg) {
-    fprintf(stderr, "syntax error: %s\n", msg);
+void memfree() {
     syntax_tree_free(ast);
     globals_free();
+    free(st); // free the stack
+}
+
+void syntax_error(char *msg) {
+    fprintf(stderr, "syntax error: %s\n", msg);
+    memfree();
     exit(1);
 }
 
 
 void runtime_error(char *msg) {
     fprintf(stderr, "runtime error: %s\n", msg);
-    syntax_tree_free(ast);
-    globals_free();
+    memfree();
     exit(2);
 }
+
+
 
 
 
