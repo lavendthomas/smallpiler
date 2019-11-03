@@ -1210,7 +1210,57 @@ typedef union reg {
   big_integer *bi;
 } reg;
 
+
+reg *make_reg() {
+    reg *new = calloc(sizeof(union reg), 1);
+    if (new == NULL) {
+        runtime_error("Not enough memory to store variables.");
+    }
+    return new;
+}
+
 reg globals[26];
+
+
+struct stack *st; // bottom of the stack
+struct stack *sp; // stack pointer
+
+struct stack {
+    reg value;
+    struct stack *prev;
+    struct stack *next;
+};
+
+struct stack *make_stack_node() {
+    struct stack *new = calloc(sizeof(struct stack), 1);
+    if (new == NULL) {
+        runtime_error("Not enough memory add an element to the stack");
+    }
+    return new;
+}
+
+/**
+ * Make a copy of the register
+ */
+void stack_push(reg n) {
+    struct stack *new = make_stack_node();
+    new->prev = sp;
+    new->value = n;
+    sp = new;
+}
+
+reg stack_pop() {
+    reg val = sp->value;
+    struct stack *old = sp;
+    sp = sp->prev;
+    sp->next = NULL;
+    free(old);
+    return val;
+}
+
+
+
+
 
 /**
  * Frees the memory used by the global variables.
@@ -1225,69 +1275,93 @@ void globals_free() {
     }
 }
 
-
 void run()
 {
-  reg stack[1000], *sp = stack; /* overflow? */
+    st = make_stack_node();
+    sp = st;
+
   code *pc = object;
 
   for (;;)
     switch (*pc++)
       {
-        case ILOAD : *sp++ = globals[*pc++];                                                            break;
-        case ISTORE: globals[*pc++] = *--sp;                                                            break;
-        case BIPUSH: sp++->nb = *pc++;                                                                  break;
+        case ILOAD : stack_push(globals[*pc++]);                                                            break;
+        case ISTORE: globals[*pc++] = stack_pop();                                                            break;
+        case BIPUSH: {
+            reg *x = make_reg();
+            x->nb = *pc++;
+            stack_push(*x);                                                                              break;
+        }
         case DUP   : sp++; sp[-1] = sp[-2];                                                             break;
-        case POP   : --sp;                                                                              break;
-        case IADD  : sp[-2].nb = sp[-2].nb + sp[-1].nb; --sp;                                           break;
-        case ISUB  : sp[-2].nb = sp[-2].nb - sp[-1].nb; --sp;                                           break;
+        case POP   : stack_pop();                                                                           break;
+        case IADD  : {
+            int a = stack_pop().nb;
+            int b = stack_pop().nb;
+            reg c;
+            c.nb = a + b;
+            stack_push(c);
+            break;
+        }
+        case ISUB  : {
+            int a = stack_pop().nb;
+            int b = stack_pop().nb;
+            reg c;
+            c.nb = a - b;
+            stack_push(c);
+            break;
+        }
         case GOTO  : pc += *pc;                                                                         break;
         case IFEQ  : {
-            big_integer *n = (--sp)->bi;
+            big_integer *n = stack_pop().bi;
             if (big_integer_is_zero(n)) pc += *pc; else pc++;
             big_integer_free(n);
             break;
         }
         case IFNE  : {
-            big_integer *n = (--sp)->bi;
+            big_integer *n = stack_pop().bi;
             if (!big_integer_is_zero(n)) pc += *pc; else pc++;
             big_integer_free(n);
             break;
         }
         case IFLT  : {
-            big_integer *n = (--sp)->bi;
-            if (big_integer_is_negative((--sp)->bi)) pc += *pc; else pc++;
+            big_integer *n = stack_pop().bi;
+            if (big_integer_is_negative(n)) pc += *pc; else pc++;
             big_integer_free(n);
             break;
         }
         case IFLE  : {
-            big_integer *nb = (--sp)->bi;
+            big_integer *nb = stack_pop().bi;
             if (big_integer_is_negative(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;
             big_integer_free(nb);
             break;
         }
         case IFGT  : {
-            big_integer *n = (--sp)->bi;
+            big_integer *n = stack_pop().bi;
             if (big_integer_is_positive(n)) pc += *pc; else pc++;
             big_integer_free(n);
             break;
         }
         case IFGE  : {
-            big_integer *nb = (--sp)->bi;
+            big_integer *nb = stack_pop().bi;
             if (big_integer_is_positive(nb) || big_integer_is_zero(nb)) pc += *pc; else pc++;
             big_integer_free(nb);
             break;
         }
-        case BGLOAD: *sp++ = globals[*pc++]; sp[-1].bi->count++;                                        break;
+        case BGLOAD:{
+            reg c;
+            c = globals[*pc++];
+            c.bi->count++;
+            stack_push(c);
+            break;
+        }
         case BGSTORE: {
-            big_integer *p = (--sp)->bi;
+            big_integer *p = stack_pop().bi;
             globals[*pc++].bi = p;
             //Don't need to free : +1 usage in globals but -1 usage in stack
             break;
         }
         case BGPOP : {
-            big_integer_free(sp[-1].bi);
-            --sp;
+            big_integer_free(stack_pop().bi);
             break;
         }
         case BGPUSH : {
@@ -1317,67 +1391,80 @@ void run()
             }
             nb->digits = first;
 
-            sp++->bi = nb;       // Add the pointer to the big_integer to the top of the stack.
+            reg c;
+            c.bi = nb;
+            stack_push(c);       // Add the pointer to the big_integer to the top of the stack.
             break;
         }
         case BGADD : {
-            big_integer *a = sp[-2].bi, *b = sp[-1].bi;
+            big_integer *a = stack_pop().bi;
+            big_integer *b = stack_pop().bi;
             big_integer *c = big_integer_sum(a,b);
-            sp[-2].bi = c;
-            sp--;
+            reg v;
+            v.bi = c;
+            stack_push(v);
 
             big_integer_free(a);
             big_integer_free(b);
             break;
         }
         case BGSUB : {
-            big_integer *a = sp[-2].bi, *b = sp[-1].bi;
+            big_integer *b = stack_pop().bi;
+            big_integer *a = stack_pop().bi;
             big_integer *c = big_integer_difference(a,b);
-            sp[-2].bi = c;
-            sp--;
+            reg v;
+            v.bi = c;
+            stack_push(v);
 
             //big_integer_free(a);
             //big_integer_free(b);
             break;
         }
         case BGDUP: {
-            sp++; sp[-1] = sp[-2];
+            reg n = stack_pop();
+            stack_push(n);
+            stack_push(n);
             // Add one to the number of counts of big_integer
-            big_integer *bi = sp[-1].bi;
-            bi->count += 1;
+            n.bi->count++;
             break;
         }
         case BGMULT : {
-            big_integer *a = sp[-2].bi, *b = sp[-1].bi;
+            big_integer *a = stack_pop().bi;
+            big_integer *b = stack_pop().bi;
             big_integer *c = big_integer_multiply(a,b);
-            sp[-2].bi =  c;
-            sp--;
+            reg v;
+            v.bi = c;
+            stack_push(v);
 
             big_integer_free(a);
             big_integer_free(b);
             break;
         }
         case BGDIV  : {
-            big_integer *a = sp[-1].bi;
+            big_integer *a = stack_pop().bi;
             big_integer *c = big_integer_divide(a);
-            sp[-1].bi = c;
+            reg v;
+            v.bi = c;
+            stack_push(v);
 
             big_integer_free(a);
             break;
         }
         case BGMOD  : {
-            big_integer *a = sp[-1].bi;
+            big_integer *a = stack_pop().bi;
             big_integer *c = big_integer_modulo(a);
-            sp[-1].bi = c;
+            reg v;
+            v.bi = c;
+            stack_push(v);
 
             big_integer_free(a);
             break;
         }
         case PRNT : {
-            big_integer_print(sp[-1].bi);
+            big_integer *n = stack_pop().bi;
+            big_integer_print(n);
             printf("\n");
-            big_integer_free(sp[-1].bi);
-            sp--;
+            big_integer_free(n);
 
             break;
         }
