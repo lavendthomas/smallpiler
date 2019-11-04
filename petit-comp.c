@@ -140,7 +140,7 @@ typedef struct big_integer {
 } big_integer;
 
 big_integer* make_big_integer(){
-    big_integer* b = calloc(sizeof(big_integer), 1);
+    big_integer* b = calloc(1, sizeof(big_integer));
     if (b == NULL) {
         runtime_error("Not enough memory available to create big integer.");
     }
@@ -154,7 +154,7 @@ typedef struct cell {
 } cell;
 
 cell* make_cell(){
-    cell * c = calloc(sizeof(struct cell), 1);
+    cell *c = calloc(1, sizeof(struct cell));
     if (c == NULL) {
         runtime_error("Not enough memory available to create a cell.");
     }
@@ -604,7 +604,7 @@ struct node
   };
 
 struct node *make_node(){
-    struct node *n = calloc(sizeof(struct node), 1);
+    struct node *n = calloc(1,sizeof(struct node));
     if (n == NULL) {
         runtime_error("Not enough memory available to create a node.");
     }
@@ -907,18 +907,46 @@ enum { ILOAD, ISTORE, BIPUSH, DUP, POP, IADD, ISUB,
 #define BIG_INTEGER_LIMITER 127             // digits < 10
 
 
-struct bytecode {
-    code c;
-    struct bytecode *prev;
-    struct bytecode *next;
-};
+const int MAX_BYTECODE_SIZE = 10000;     // Initial size of the bytecode
+int max_bytecode_size = MAX_BYTECODE_SIZE;
+code *object, *here;
+
+code *make_new_bytecode_array(int size) {
+    code *new_bytecode = calloc(size, sizeof(code));
+    if (new_bytecode == NULL) {
+        runtime_error("Not enough memory to store bytecode.");
+    }
+    return new_bytecode;
+}
 
 
+void gen(code c) {
+    if (object == NULL) {
+        object = make_new_bytecode_array(MAX_BYTECODE_SIZE);
+        max_bytecode_size = MAX_BYTECODE_SIZE;
+        here = object;
+    } else if (here - object >= max_bytecode_size -1) {
+        // The code below if for an "arraylist" style implementation, but doesn't work
+        // because we would have to recompute the here, p1, p2 values in the c() function.
+        // So instead we just halt the program.
+        runtime_error("Bytecode too long.");
 
+        int dist = here - object;
+        //copy to new array
+        code *new_bytecode = make_new_bytecode_array(max_bytecode_size * 2);
 
-code object[1000], *here = object;
+        for (int i=0; i<max_bytecode_size; i++) { // copy all bytecode
+            new_bytecode[i] = object[i];
+        }
 
-void gen(code c) { *here++ = c; } /* overflow? */
+        max_bytecode_size *= 2;
+
+        free(object);
+        object = new_bytecode;
+        here = new_bytecode + dist;
+    }
+    *here++ = c;
+}
 
 #ifdef SHOW_CODE
 #define g(c) do { printf(" %d",c); gen(c); } while (0)
@@ -931,6 +959,7 @@ void gen(code c) { *here++ = c; } /* overflow? */
 void fix(code *src, code *dst) {
     long dist = dst - src;
     if (dist < -128 || dist > 127) {
+        printf("%ld\n", dist); // TODO remove
         syntax_error("Cannot branch outside of [-128, 127] range, please shorten your loops.");
     }
     *src = dist;
@@ -1220,7 +1249,7 @@ typedef union reg {
 
 
 reg *make_reg() {
-    reg *new = calloc(sizeof(union reg), 1);
+    reg *new = calloc(1, sizeof(union reg));
     if (new == NULL) {
         runtime_error("Not enough memory to store variables.");
     }
@@ -1236,11 +1265,10 @@ struct stack *sp; // stack pointer
 struct stack {
     reg value;
     struct stack *prev;
-    struct stack *next;
 };
 
 struct stack *make_stack_node() {
-    struct stack *new = calloc(sizeof(struct stack), 1);
+    struct stack *new = calloc(1, sizeof(struct stack));
     if (new == NULL) {
         runtime_error("Not enough memory add an element to the stack");
     }
@@ -1258,12 +1286,18 @@ void stack_push(reg n) {
 }
 
 reg stack_pop() {
-    reg val = sp->value;
-    struct stack *old = sp;
-    sp = sp->prev;
-    sp->next = NULL;
-    free(old);
-    return val;
+    if (sp != NULL) {
+        reg val = sp->value;
+        struct stack *old = sp;
+        sp = sp->prev;
+        free(old);
+        return val;
+    } else {
+        runtime_error("Reference to NULL");
+        reg c;
+        c.nb = 0;
+        return c;// never used
+    }
 }
 
 
@@ -1430,10 +1464,10 @@ void run()
         }
         case BGDUP: {
             reg n = stack_pop();
+            n.bi->count++; // Add one to the number of counts of big_integer
             stack_push(n);
             stack_push(n);
-            // Add one to the number of counts of big_integer
-            n.bi->count++;
+
             break;
         }
         case BGMULT : {
@@ -1455,7 +1489,7 @@ void run()
             v.bi = c;
             stack_push(v);
 
-            big_integer_free(a);
+            //big_integer_free(a);
             break;
         }
         case BGMOD  : {
@@ -1465,14 +1499,14 @@ void run()
             v.bi = c;
             stack_push(v);
 
-            big_integer_free(a);
+            //big_integer_free(a);
             break;
         }
         case PRNT : {
             big_integer *n = stack_pop().bi;
             big_integer_print(n);
             printf("\n");
-            big_integer_free(n);
+            //big_integer_free(n);
 
             break;
         }
@@ -1494,7 +1528,6 @@ int main() {
     ast = program();
     c(ast);
     syntax_tree_free(ast);
-
 
 #ifdef SHOW_CODE
     printf("\n");
