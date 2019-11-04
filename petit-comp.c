@@ -1540,6 +1540,7 @@ int main() {
     run();
 
     globals_free();
+    free(object);
 
     return 0;
 }
@@ -1552,6 +1553,7 @@ void memfree() {
     syntax_tree_free(ast);
     globals_free();
     free(st); // free the stack
+    free(object);
 }
 
 void syntax_error(char *msg) {
