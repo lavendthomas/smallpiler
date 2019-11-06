@@ -534,17 +534,20 @@ big_integer *big_integer_modulo(big_integer *a) {
 /**
  *  Returns a new big_integer containing the difference of the two integers in parameters.
  */
-big_integer *big_integer_difference(big_integer *bi1, big_integer *bi2) {
+big_integer *big_integer_difference(big_integer *a, big_integer *b) {
     big_integer *diff;
-    if (bi2->sign == POSITIVE) {                // Should be make a copy to support embedded calls ?
-        bi2->sign = NEGATIVE;
-        diff = big_integer_sum(bi1, bi2);
-        bi2->sign = POSITIVE;
+    big_integer *cp_a = big_integer_copy(a);
+    big_integer *cp_b = big_integer_copy(b);
+
+    if (cp_b->sign == POSITIVE) {
+        cp_b->sign = NEGATIVE;
     } else {
-        bi2->sign = POSITIVE;
-        diff = big_integer_sum(bi1, bi2);
-        bi2->sign = NEGATIVE;
+        cp_b->sign = POSITIVE;
     }
+    diff = big_integer_sum(cp_a, cp_b);
+
+    big_integer_free(cp_a);
+    big_integer_free(cp_b);
     return diff;
 }
 
@@ -1171,7 +1174,6 @@ void c(node *x) {
             gi(IFNE);
             fix(here++, p1 + object);
 
-            //TODO same as for while ?
             fix_breaks(x->start + object);
             break;
         }
@@ -1341,17 +1343,17 @@ void run()
         case IADD  : {
             int a = stack_pop().nb;
             int b = stack_pop().nb;
-            reg c;
-            c.nb = a + b;
-            stack_push(c);
+            reg x;
+            x.nb = a + b;
+            stack_push(x);
             break;
         }
         case ISUB  : {
             int a = stack_pop().nb;
             int b = stack_pop().nb;
-            reg c;
-            c.nb = a - b;
-            stack_push(c);
+            reg x;
+            x.nb = a - b;
+            stack_push(x);
             break;
         }
         case GOTO  : pc += *pc;                                                                         break;
@@ -1392,10 +1394,10 @@ void run()
             break;
         }
         case BGLOAD:{
-            reg c;
-            c = globals[*pc++];
-            c.bi->count++;
-            stack_push(c);
+            reg x;
+            x = globals[*pc++];
+            x.bi->count++;
+            stack_push(x);
             break;
         }
         case BGSTORE: {
@@ -1443,9 +1445,9 @@ void run()
         case BGADD : {
             big_integer *a = stack_pop().bi;
             big_integer *b = stack_pop().bi;
-            big_integer *c = big_integer_sum(a,b);
+            big_integer *s = big_integer_sum(a,b);
             reg v;
-            v.bi = c;
+            v.bi = s;
             stack_push(v);
 
             big_integer_free(a);
@@ -1455,9 +1457,9 @@ void run()
         case BGSUB : {
             big_integer *b = stack_pop().bi;
             big_integer *a = stack_pop().bi;
-            big_integer *c = big_integer_difference(a,b);
+            big_integer *s = big_integer_difference(a,b);
             reg v;
-            v.bi = c;
+            v.bi = s;
             stack_push(v);
 
             //big_integer_free(a);
@@ -1475,9 +1477,9 @@ void run()
         case BGMULT : {
             big_integer *a = stack_pop().bi;
             big_integer *b = stack_pop().bi;
-            big_integer *c = big_integer_multiply(a,b);
+            big_integer *p = big_integer_multiply(a,b);
             reg v;
-            v.bi = c;
+            v.bi = p;
             stack_push(v);
 
             big_integer_free(a);
@@ -1486,9 +1488,9 @@ void run()
         }
         case BGDIV  : {
             big_integer *a = stack_pop().bi;
-            big_integer *c = big_integer_divide(a);
+            big_integer *d = big_integer_divide(a);
             reg v;
-            v.bi = c;
+            v.bi = d;
             stack_push(v);
 
             //big_integer_free(a);
@@ -1496,9 +1498,9 @@ void run()
         }
         case BGMOD  : {
             big_integer *a = stack_pop().bi;
-            big_integer *c = big_integer_modulo(a);
+            big_integer *m = big_integer_modulo(a);
             reg v;
-            v.bi = c;
+            v.bi = m;
             stack_push(v);
 
             //big_integer_free(a);
@@ -1524,7 +1526,6 @@ node *ast;
 
 int main() {
 
-    freopen("code.c", "r", stdin);
     int i;
 
     ast = program();
