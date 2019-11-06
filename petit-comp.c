@@ -1,5 +1,14 @@
 /* fichier: "petit-comp.c" */
 
+/*
+ * Authors : Thomas Lavend'Homme and David Drapeau-Garon
+ * Modified from a file provided by Marc Feely
+ * as part of the IFT2035-A-A19 - Concepts des langages de programmation
+ * course at the University of Montréal
+ *
+ * 2019
+ */
+
 /* Un petit compilateur et machine virtuelle pour un sous-ensemble de C.  */
 
 #include <stdio.h>
