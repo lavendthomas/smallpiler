@@ -2,7 +2,7 @@
 
 /*
  * Authors : Thomas Lavend'Homme and David Drapeau-Garon
- * Modified from a file provided by Marc Feely
+ * Modified from a file provided by Marc Feeley
  * as part of the IFT2035-A-A19 - Concepts des langages de programmation
  * course at the University of Montréal
  *

@@ -1,1 +1,0 @@
-/usr/bin/cc -g   CMakeFiles/smallpiler.dir/petit-comp.c.o  -o smallpiler 
